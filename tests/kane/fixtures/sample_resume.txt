@@ -1,0 +1,30 @@
+Jordan Rivera
+jordan.rivera@example.com | (555) 123-4567 | Austin, TX
+linkedin.com/in/jordanrivera | github.com/jrivera
+
+EDUCATION
+University of Texas at Austin — B.S. in Computer Science, GPA 3.7
+Graduated May 2023
+
+EXPERIENCE
+Software Engineering Intern, Acme Corp — Austin, TX (Jun 2022 – Aug 2022)
+- Built a Python microservice that reduced report generation time by 40%
+- Wrote unit tests raising backend coverage from 61% to 88%
+
+Backend Engineer, Northwind Labs — Remote (Sep 2023 – Present)
+- Own the payments service (TypeScript, Node.js, PostgreSQL)
+- Migrated the team from REST to gRPC for internal service calls
+
+PROJECTS
+Recipe Finder (github.com/jrivera/recipe-finder)
+- React + Flask app that recommends recipes from pantry ingredients
+- Technologies: React, Flask, PostgreSQL
+
+SKILLS
+Python, TypeScript, Node.js, React, PostgreSQL, Docker, gRPC
+
+CERTIFICATIONS
+AWS Certified Developer – Associate, 2023
+
+Authorized to work in the United States without sponsorship.
+Expected salary: $120,000 - $140,000
