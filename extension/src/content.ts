@@ -719,19 +719,16 @@ class ApplyWidget {
 const WIDGET_CSS = `
   :host { all: initial; }
   .cp-fab {
-    position: fixed; top: 50%; right: 0; transform: translateY(-50%);
-    z-index: 2147483647;
+    position: fixed; top: 20px; right: 20px; z-index: 2147483647;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #2f6feb; color: #fff; border: none; border-radius: 8px 0 0 8px;
-    padding: 1rem 0.55rem; font-size: 0.85rem; font-weight: 600;
-    letter-spacing: 0.02em; writing-mode: vertical-rl; text-orientation: mixed;
-    cursor: pointer; box-shadow: -2px 2px 12px rgba(0,0,0,0.18);
+    background: #2f6feb; color: #fff; border: none; border-radius: 999px;
+    padding: 0.75rem 1.4rem; font-size: 0.92rem; font-weight: 600;
+    cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2);
   }
   .cp-fab:disabled { opacity: 0.6; cursor: default; }
   .cp-fab:hover:not(:disabled) { background: #2557c7; }
   .cp-panel {
-    display: none; position: fixed; top: 50%; right: 56px; transform: translateY(-50%);
-    z-index: 2147483647;
+    display: none; position: fixed; top: 74px; right: 20px; z-index: 2147483647;
     width: 280px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     padding: 0.9rem 1rem; font-size: 0.85rem; line-height: 1.45; color: #17181c;
