@@ -5,7 +5,14 @@ import type {
   DetectedFieldType,
 } from "@careerpilot/shared";
 
-const SERVER_URL = "http://localhost:8787";
+// Proxied through the background service worker — see background.ts for
+// why a direct fetch() from here doesn't work on https:// pages.
+async function bgFetch(
+  path: string,
+  init?: RequestInit,
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  return chrome.runtime.sendMessage({ type: "CAREERPILOT_FETCH", path, init });
+}
 
 type FormControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
@@ -14,16 +21,73 @@ interface ExtractedField {
   element: FormControl;
 }
 
+const SKIPPED_INPUT_TYPES = new Set([
+  "hidden",
+  "submit",
+  "button",
+  "reset",
+  "file",
+  "password",
+  "image",
+  "checkbox",
+  "radio",
+]);
+
+function isVisible(el: HTMLElement): boolean {
+  return !!el.offsetParent || el.getClientRects().length > 0;
+}
+
+// Real ATS platforms (Greenhouse, Lever, Workday, a company's own custom
+// form, ...) all mark up labels differently. Try the standard/accessible
+// approaches first, in priority order, before falling back to weaker
+// signals — this is the part that has to work generically, unlike the
+// page-specific selectors this used to hardcode.
+function labelFor(control: FormControl): string | null {
+  if (control.id) {
+    const byFor = document.querySelector(`label[for="${CSS.escape(control.id)}"]`);
+    if (byFor?.textContent?.trim()) return byFor.textContent;
+  }
+
+  const wrapping = control.closest("label");
+  if (wrapping?.textContent?.trim()) return wrapping.textContent;
+
+  const ariaLabel = control.getAttribute("aria-label");
+  if (ariaLabel?.trim()) return ariaLabel;
+
+  const labelledBy = control.getAttribute("aria-labelledby");
+  if (labelledBy) {
+    const text = labelledBy
+      .split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent?.trim())
+      .filter(Boolean)
+      .join(" ");
+    if (text) return text;
+  }
+
+  const placeholder = control instanceof HTMLTextAreaElement || control instanceof HTMLInputElement
+    ? control.placeholder
+    : null;
+  if (placeholder?.trim()) return placeholder;
+
+  return null;
+}
+
 function extractFields(): ExtractedField[] {
-  const fieldEls = Array.from(document.querySelectorAll<HTMLElement>(".njob-field"));
+  const controls = Array.from(
+    document.querySelectorAll<FormControl>("input, select, textarea"),
+  ).filter((el) => {
+    if (el instanceof HTMLInputElement && SKIPPED_INPUT_TYPES.has(el.type)) return false;
+    if (!isVisible(el)) return false;
+    if ("value" in el && el.value.trim().length > 0) return false; // don't clobber prefilled data
+    return true;
+  });
+
   const results: ExtractedField[] = [];
 
-  fieldEls.forEach((el, i) => {
-    const labelEl = el.querySelector(".njob-label");
-    const control = el.querySelector<FormControl>("input, select, textarea");
-    if (!labelEl || !control) return;
-
-    const label = (labelEl.textContent ?? "").replace("*", "").trim();
+  controls.forEach((control, i) => {
+    const rawLabel = labelFor(control);
+    if (!rawLabel) return;
+    const label = rawLabel.replace("*", "").trim();
     if (!label) return;
 
     let fieldType: DetectedFieldType = "text";
@@ -47,7 +111,7 @@ function extractFields(): ExtractedField[] {
     });
   });
 
-  return results;
+  return results.slice(0, 40); // guard against pathological pages
 }
 
 // React tracks a shadow "last value" on the native setter, so plain
@@ -78,14 +142,33 @@ function fillSelect(el: HTMLSelectElement, desired: string): boolean {
   return true;
 }
 
+function guessCompanyFromHost(): string {
+  const host = window.location.hostname.replace(/^www\./, "");
+  const base = host.split(".").slice(0, -1).join(".") || host;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
 function jobContextFromPage() {
-  const title = document.querySelector(".njob-job-header h1")?.textContent?.trim() ?? document.title;
-  const logo = document.querySelector(".njob-logo")?.textContent?.trim() ?? "";
-  const description = document.querySelector(".njob-description")?.textContent?.trim();
+  // Prefer our own demo page's known structure (exact, already verified),
+  // then fall back to generic signals that work on an arbitrary real site.
+  const title =
+    document.querySelector(".njob-job-header h1")?.textContent?.trim() ||
+    document.querySelector("h1")?.textContent?.trim() ||
+    document.title;
+
+  const company =
+    document.querySelector(".njob-logo")?.textContent?.trim() ||
+    document.querySelector('meta[property="og:site_name"]')?.getAttribute("content")?.trim() ||
+    guessCompanyFromHost();
+
+  const description =
+    document.querySelector(".njob-description")?.textContent?.trim() ||
+    document.querySelector('meta[name="description"]')?.getAttribute("content")?.trim();
+
   return {
     url: window.location.href,
     title,
-    company: logo || "Unknown company",
+    company,
     description,
   };
 }
@@ -142,13 +225,13 @@ class ApplyWidget {
     this.setPanel(`<div class="cp-status">Loading your Career Profile…</div>`);
     let profile: CareerProfile;
     try {
-      const profileRes = await fetch(`${SERVER_URL}/api/profile/latest`);
+      const profileRes = await bgFetch("/api/profile/latest");
       if (!profileRes.ok) {
         throw new Error(
           "No Career Profile found. Upload your resume on the CareerPilot onboarding page first.",
         );
       }
-      profile = (await profileRes.json()) as CareerProfile;
+      profile = profileRes.body as CareerProfile;
     } catch (err) {
       this.setPanel(
         `<div class="cp-status cp-error">${err instanceof Error ? err.message : "Could not load your Career Profile."}</div>`,
@@ -165,7 +248,7 @@ class ApplyWidget {
 
     let answers: AutofillResponse["answers"];
     try {
-      const res = await fetch(`${SERVER_URL}/api/autofill/generate`, {
+      const res = await bgFetch("/api/autofill/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -175,11 +258,10 @@ class ApplyWidget {
         }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        const body = res.body as { error?: string } | null;
         throw new Error(body?.error ?? "Autofill generation failed.");
       }
-      const data = (await res.json()) as AutofillResponse;
-      answers = data.answers;
+      answers = (res.body as AutofillResponse).answers;
     } catch (err) {
       this.setPanel(
         `<div class="cp-status cp-error">${err instanceof Error ? err.message : "Autofill generation failed."}</div>`,
@@ -231,10 +313,24 @@ class ApplyWidget {
     this.button.disabled = false;
   }
 
+  // Real ATS platforms signal a successful submission very differently —
+  // a redirect, a toast, a swapped-in "thank you" panel. There's no single
+  // reliable generic signal, so this combines our own demo page's exact
+  // marker with a best-effort phrase heuristic for other sites. It can
+  // both miss real confirmations and false-positive on unrelated text —
+  // it's a heuristic, not a guarantee, which is why the widget always
+  // shows what it did rather than silently trusting this.
   private watchForSubmission() {
+    const confirmationPhrases =
+      /application (has been )?(submitted|received)|thank you for (applying|your application)|we('| ha)ve received your application/i;
+
     const observer = new MutationObserver(() => {
-      const confirmation = document.querySelector(".njob-confirmation");
-      if (confirmation) {
+      if (document.querySelector(".njob-confirmation")) {
+        observer.disconnect();
+        void this.recordApplication();
+        return;
+      }
+      if (this.lastJobContext && confirmationPhrases.test(document.body.innerText.slice(0, 4000))) {
         observer.disconnect();
         void this.recordApplication();
       }
@@ -249,7 +345,7 @@ class ApplyWidget {
     // submitted without ever running Apply with AI.
     const ctx = this.lastJobContext ?? jobContextFromPage();
     try {
-      const res = await fetch(`${SERVER_URL}/api/applications`, {
+      const res = await bgFetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -43,10 +43,10 @@ async function checkProfile(): Promise<void> {
 async function checkPage(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = tab?.url ?? "";
-  if (/^http:\/\/localhost:517\d\/demo\//.test(url)) {
+  if (/^https?:\/\//.test(url)) {
     setRow("page", "ok", "Ready to apply here", "Look for the Apply with AI button on the page");
   } else {
-    setRow("page", "neutral", "Not a supported application page", "Open a job posting to use Apply with AI");
+    setRow("page", "neutral", "Not a supported page", "Open a job application page to use Apply with AI");
   }
 }
 
