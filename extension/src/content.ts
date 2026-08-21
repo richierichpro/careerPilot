@@ -501,23 +501,6 @@ async function detectConfirmationWithAI(jobContext: JobContext): Promise<boolean
   }
 }
 
-// Fields the AI couldn't ground (e.g. pronouns, gender) get flagged for the
-// candidate to fill in by hand. When they do, that answer is worth more than
-// this one form — save it back to the profile so the next application never
-// asks again.
-async function learnAnswer(profileId: string, label: string, value: string): Promise<boolean> {
-  try {
-    const res = await bgFetch(`/api/profile/${profileId}/learn`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label, value }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 // Automatic detection (immediate check + a MutationObserver retry window)
 // depends on timing heuristics that have real, demonstrated failure modes —
 // a slow-rendering dashboard can still be loading when even the retry
@@ -790,7 +773,6 @@ class ApplyWidget {
       if (entry.checkboxOptions) {
         if (!answer.grounded || !answer.value.trim()) {
           needsReview++;
-          this.watchForLearnableCheckboxGroup(entry.checkboxOptions, entry.field.label, profile.id);
           continue;
         }
         const target = answer.value.trim().toLowerCase();
@@ -816,7 +798,6 @@ class ApplyWidget {
         element.style.outline = "2px dashed #b45309";
         element.style.outlineOffset = "2px";
         element.title = "CareerPilot: not found in your profile — please fill this in yourself.";
-        this.watchForLearnableAnswer(element, entry.field.label, profile.id);
         continue;
       }
 
@@ -852,47 +833,6 @@ class ApplyWidget {
     `);
     this.attachCopyPasswordHandler();
     this.button.disabled = false;
-  }
-
-  // A field the AI couldn't ground is left for the candidate to fill by
-  // hand. The first time they do (change or blur, whichever fires first —
-  // both are removed together so it can only fire once), record it against
-  // the profile so it's grounded truth on every future application.
-  private watchForLearnableAnswer(element: FormControl, label: string, profileId: string) {
-    const handler = () => {
-      const value = element.value.trim();
-      element.removeEventListener("change", handler);
-      element.removeEventListener("blur", handler);
-      if (!value) return;
-      void learnAnswer(profileId, label, value).then((ok) => {
-        if (ok) {
-          element.style.outline = "2px solid #16a34a";
-          element.title = "CareerPilot learned this answer — it'll auto-fill next time.";
-        }
-      });
-    };
-    element.addEventListener("change", handler);
-    element.addEventListener("blur", handler);
-  }
-
-  private watchForLearnableCheckboxGroup(
-    options: CheckboxOption[],
-    label: string,
-    profileId: string,
-  ) {
-    const handlers: Array<[HTMLInputElement, () => void]> = [];
-    const cleanup = () => {
-      for (const [input, h] of handlers) input.removeEventListener("change", h);
-    };
-    for (const opt of options) {
-      const handler = () => {
-        if (!opt.input.checked) return;
-        cleanup();
-        void learnAnswer(profileId, label, opt.label);
-      };
-      handlers.push([opt.input, handler]);
-      opt.input.addEventListener("change", handler);
-    }
   }
 
   private passwordPanelHtml(password: string): string {

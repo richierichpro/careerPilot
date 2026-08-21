@@ -57,18 +57,8 @@ export interface CareerProfile {
   certifications: CertificationEntry[];
   workAuthorization?: string;
   salaryExpectation?: string;
-  // Answers the candidate typed in themselves for fields the AI couldn't
-  // ground from the resume (e.g. pronouns, gender, an unlisted work-auth
-  // detail), keyed by the form field's label. Learned once, reused on every
-  // later application so the same question never needs manual re-entry.
-  customAnswers?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface LearnAnswerRequest {
-  label: string;
-  value: string;
 }
 
 export interface Application {

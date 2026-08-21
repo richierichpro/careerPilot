@@ -5,12 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import type {
-  ApiErrorResponse,
-  CareerProfile,
-  LearnAnswerRequest,
-  ProfileParseRequest,
-} from "@careerpilot/shared";
+import type { ApiErrorResponse, CareerProfile, ProfileParseRequest } from "@careerpilot/shared";
 import { anthropic } from "../lib/anthropicClient";
 import { extractResumeText } from "../lib/extractResumeText";
 
@@ -249,34 +244,6 @@ profileRouter.get("/latest", async (_req, res) => {
     const body: ApiErrorResponse = { error: "No Career Profile found yet." };
     res.status(404).json(body);
   }
-});
-
-// Called by the extension when the user manually fills in a field the AI
-// couldn't ground (e.g. pronouns, gender) — the answer is remembered against
-// the profile so the next application never needs it typed again.
-profileRouter.post("/:id/learn", async (req, res) => {
-  const { label, value } = req.body as Partial<LearnAnswerRequest>;
-  if (!label || typeof label !== "string" || !value || typeof value !== "string") {
-    const body: ApiErrorResponse = { error: "label and value are required." };
-    res.status(400).json(body);
-    return;
-  }
-
-  const filePath = path.join(PROFILES_DIR, `${req.params.id}.json`);
-  let profile: CareerProfile;
-  try {
-    const raw = await fs.readFile(filePath, "utf-8");
-    profile = JSON.parse(raw) as CareerProfile;
-  } catch {
-    const body: ApiErrorResponse = { error: "Profile not found." };
-    res.status(404).json(body);
-    return;
-  }
-
-  profile.customAnswers = { ...profile.customAnswers, [label.trim()]: value.trim() };
-  profile.updatedAt = new Date().toISOString();
-  await fs.writeFile(filePath, JSON.stringify(profile, null, 2));
-  res.json(profile);
 });
 
 profileRouter.get("/:id", async (req, res) => {
