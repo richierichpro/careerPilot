@@ -213,3 +213,117 @@ body {
   padding: 0.25rem 0.7rem;
   font-size: 0.82rem;
 }
+
+.applications-table {
+  width: 100%;
+  margin-top: 1.5rem;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.applications-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 0.75rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.applications-table td {
+  padding: 0.85rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.applications-table tr:last-child td {
+  border-bottom: none;
+}
+
+.applications-table a {
+  color: var(--fg);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.applications-table a:hover {
+  text-decoration: underline;
+}
+
+.cell-company {
+  font-weight: 600;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.status-saved {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.status-applying {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.status-applied {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.status-interview {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.status-offer {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.status-rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.empty-state {
+  margin-top: 2rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.applications-loading {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.skeleton-row {
+  height: 3rem;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 37%, #f1f5f9 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
