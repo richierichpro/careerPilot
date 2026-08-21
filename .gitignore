@@ -1,6 +1,11 @@
 node_modules/
 dist/
 build/
+# The extension is loaded straight from the repo via Chrome's "Load
+# unpacked" — no build step should be required to try it, so its built
+# output is committed rather than gitignored like every other dist/ dir.
+!extension/dist/
+!extension/dist/**
 .env
 .env.local
 *.log
@@ -9,7 +14,6 @@ build/
 *.sqlite3
 *.tsbuildinfo
 server/data/
-extension/dist/
 web/dist/
 .kane/
 .testmuai/
