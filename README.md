@@ -41,10 +41,10 @@ npm run dev:web      # web app — watch the terminal for the port (5173, or 517
 ## Try the full flow
 
 1. Open `http://localhost:5173/onboarding` (or whichever port `dev:web` printed) and upload a resume (PDF/DOC/DOCX/TXT). Claude extracts a structured Career Profile — watch it appear below the upload.
-2. Load the Chrome extension (below), then open `http://localhost:5173/demo/northwind-backend-engineer` — a realistic fictional job application page.
+2. Load the Chrome extension (below), then open `http://localhost:5173/demo/northwind-backend-engineer` — a realistic fictional job application page, or any real job application form (field detection is generic — `label[for]`, wrapping `<label>`, `aria-label`, `aria-labelledby`, then `placeholder` — not tied to our demo page's markup).
 3. Click the **Apply with AI** button in the bottom-right corner. The extension reads the form, calls the backend for AI-generated answers grounded in your Career Profile, and fills every field — blue outline for fields it filled, dashed orange for anything it couldn't ground in your profile and left for you to fill in yourself.
-4. Review, then click **Submit Application**.
-5. Open `http://localhost:5173/applications` — the submission is recorded automatically.
+4. Review, then click **Submit Application** yourself — the extension never auto-submits.
+5. Open `http://localhost:5173/applications` — the submission is recorded automatically (detected via the demo page's confirmation panel, or a generic "application submitted" phrase heuristic on other sites).
 
 ### Loading the extension
 
