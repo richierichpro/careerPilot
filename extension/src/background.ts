@@ -136,8 +136,32 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   }
 
   if (message?.type === "CAREERPILOT_QUERY_FORM_STATE") {
-    sendResponse({ available: formFrameByTab.has(message.tabId) });
-    return undefined;
+    if (formFrameByTab.has(message.tabId)) {
+      sendResponse({ available: true });
+      return undefined;
+    }
+    // The cache can miss the timing of the content script's own report
+    // (confirmed real case) — fall back to asking the top frame directly
+    // and live, which covers the common case where the form isn't inside
+    // an embedded iframe at all.
+    (async () => {
+      try {
+        const response = (await chrome.tabs.sendMessage(message.tabId, {
+          type: "CAREERPILOT_QUERY_LIVE_FORM_STATE",
+        })) as { available: boolean } | undefined;
+        if (response?.available) {
+          formFrameByTab.set(message.tabId, 0);
+          sendResponse({ available: true });
+          return;
+        }
+      } catch {
+        // No content script listening in the top frame (e.g. the form is
+        // in an embedded iframe that never got a chance to report, or the
+        // page genuinely has none) — fine, just means unavailable.
+      }
+      sendResponse({ available: false });
+    })();
+    return true;
   }
 
   if (message?.type === "CAREERPILOT_TRIGGER_FILL") {

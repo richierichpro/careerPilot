@@ -56,8 +56,25 @@
       return void 0;
     }
     if (message?.type === "CAREERPILOT_QUERY_FORM_STATE") {
-      sendResponse({ available: formFrameByTab.has(message.tabId) });
-      return void 0;
+      if (formFrameByTab.has(message.tabId)) {
+        sendResponse({ available: true });
+        return void 0;
+      }
+      (async () => {
+        try {
+          const response = await chrome.tabs.sendMessage(message.tabId, {
+            type: "CAREERPILOT_QUERY_LIVE_FORM_STATE"
+          });
+          if (response?.available) {
+            formFrameByTab.set(message.tabId, 0);
+            sendResponse({ available: true });
+            return;
+          }
+        } catch {
+        }
+        sendResponse({ available: false });
+      })();
+      return true;
     }
     if (message?.type === "CAREERPILOT_TRIGGER_FILL") {
       const frameId = formFrameByTab.get(message.tabId);

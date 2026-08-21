@@ -685,10 +685,19 @@
       if (!mounted) observer.disconnect();
     }, 2e4);
   }
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "CAREERPILOT_RUN_FILL") {
       activeWidget?.runIfIdle();
+      return void 0;
     }
+    if (message?.type === "CAREERPILOT_QUERY_LIVE_FORM_STATE") {
+      if (!activeWidget && !document.querySelector(".app-shell") && frameHasFillableForm()) {
+        activeWidget = new ApplyWidget();
+      }
+      sendResponse({ available: !!activeWidget });
+      return void 0;
+    }
+    return void 0;
   });
   watchForFillableForm();
   if (!document.querySelector(".app-shell")) {

@@ -1065,10 +1065,31 @@ function watchForFillableForm() {
 // The popup can't run the fill itself (it has no access to the page's
 // DOM) — it asks the background script, which relays this to whichever
 // frame actually reported a fillable form.
-chrome.runtime.onMessage.addListener((message: { type?: string }) => {
+chrome.runtime.onMessage.addListener((message: { type?: string }, _sender, sendResponse) => {
   if (message?.type === "CAREERPILOT_RUN_FILL") {
     activeWidget?.runIfIdle();
+    return undefined;
   }
+  // The background's "which frame has a form" cache is asynchronous and
+  // can be stale or miss the timing of the report (confirmed real case:
+  // popup opened, background said no form, though the top-frame content
+  // script had already found one). A direct, live re-check here — asked
+  // of the top frame specifically, since that's what a plain
+  // chrome.tabs.sendMessage from the popup reaches by default — is a
+  // more reliable source of truth than trusting the cache alone.
+  if (message?.type === "CAREERPILOT_QUERY_LIVE_FORM_STATE") {
+    // Reporting "available" here only to have a later CAREERPILOT_RUN_FILL
+    // find no activeWidget to act on (e.g. the .app-shell guard or a
+    // timing gap meant it was never actually mounted) would leave the
+    // popup's click doing nothing silently — mount it now if this live
+    // check is what's discovering the form for the first time.
+    if (!activeWidget && !document.querySelector(".app-shell") && frameHasFillableForm()) {
+      activeWidget = new ApplyWidget();
+    }
+    sendResponse({ available: !!activeWidget });
+    return undefined;
+  }
+  return undefined;
 });
 
 watchForFillableForm();
