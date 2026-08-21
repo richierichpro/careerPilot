@@ -332,3 +332,43 @@ This is a real instance of the Claude ↔ Kane closed loop: Kane caught a
 genuine (if minor) defect during normal development — not a scripted
 demo — the agent diagnosed it independently of Kane's own guess, fixed
 it, and Kane re-verified.
+
+### 2026-08-21 — AI semantic submission detection, verified against real Uber/Oracle pages (not Kane-driven)
+
+**Context:** The extension previously decided "was this application actually
+submitted?" using a hand-written `CONFIRMATION_PHRASES` regex list matched
+against the page. This kept missing real ATS variants — most notably Oracle
+Recruiting Cloud (Uber's careers site), which redirects to a generic
+`my-profile` dashboard with no fixed confirmation wording, rather than a
+dedicated "thank you" URL like Greenhouse's. Replaced it entirely with a new
+`POST /api/autofill/detect-confirmation` endpoint that gives the model the
+job context, current URL, and visible page text, and asks it to judge
+`submitted: true/false` with reasoning — a semantic decision instead of a
+pattern match.
+
+**Verification:** Not run through Kane's own tab-driving harness for this
+one — instead verified directly via CDP against tabs the user already had
+open on Uber's real, authenticated Oracle Recruiting Cloud site
+(`iaziqy.fa.ocs.oraclecloud.com/hcmUI/.../UberCareers`), which is exactly
+the site that had been silently failing to track applications.
+
+- Captured the real `my-profile` page text (a genuine "ACTIVE JOB
+  APPLICATIONS" listing showing "Sr Staff Software Engineer" as "Under
+  Consideration", plus an unrelated "DRAFT APPLICATIONS" entry) and posted
+  it to the new endpoint with `jobContext` for the Sr Staff Software
+  Engineer / Uber / req 147877 listing.
+  **Result:** `submitted: true`, with reasoning that correctly matched the
+  requisition ID and explicitly distinguished the submitted entry from the
+  unrelated draft application on the same page.
+- Captured the real, in-progress "Software Engineer application, step 1 of
+  4" form (job 300990, not yet submitted) and posted it with `jobContext`
+  for that same job.
+  **Result:** `submitted: false`, with reasoning correctly noting the form
+  was still open with an unclicked Submit button and no confirmation
+  content.
+
+Both are true real-world cases, not fabricated fixtures — the my-profile
+page reflects an application the user actually submitted earlier in this
+session that the old regex-based detector had missed. Extension rebuilt,
+reloaded via `chrome://extensions`, and the fill flow regression-checked
+before this change was committed.
