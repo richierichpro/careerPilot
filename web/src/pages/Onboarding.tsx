@@ -1,9 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiErrorResponse, CareerProfile, ResumeUploadResponse } from "@careerpilot/shared";
 import { API_BASE_URL } from "../lib/api";
 import ProfileView from "../components/ProfileView";
 
 type Stage =
+  | { status: "checking" }
   | { status: "idle" }
   | { status: "uploading"; filename: string }
   | { status: "parsing"; filename: string }
@@ -18,9 +19,25 @@ async function readError(res: Response, fallback: string): Promise<string> {
 }
 
 export default function Onboarding() {
-  const [stage, setStage] = useState<Stage>({ status: "idle" });
+  const [stage, setStage] = useState<Stage>({ status: "checking" });
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/api/profile/latest`)
+      .then((res) => (res.ok ? (res.json() as Promise<CareerProfile>) : null))
+      .then((profile) => {
+        if (cancelled) return;
+        setStage(profile ? { status: "parsed", profile } : { status: "idle" });
+      })
+      .catch(() => {
+        if (!cancelled) setStage({ status: "idle" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const uploadAndParse = useCallback(async (file: File) => {
     setStage({ status: "uploading", filename: file.name });
@@ -87,7 +104,13 @@ export default function Onboarding() {
         Profile below. Editable sections are coming in the next milestone.
       </p>
 
-      {stage.status !== "parsed" && (
+      {stage.status === "checking" && (
+        <div className="applications-loading">
+          <div className="skeleton-row" />
+        </div>
+      )}
+
+      {stage.status !== "checking" && stage.status !== "parsed" && (
         <div
           className={`dropzone${isDragging ? " dragging" : ""}${busy ? " busy" : ""}`}
           onClick={() => !busy && inputRef.current?.click()}
