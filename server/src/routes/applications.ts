@@ -115,3 +115,13 @@ applicationsRouter.patch("/:id", (req, res) => {
 
   res.json(updated);
 });
+
+applicationsRouter.delete("/:id", (req, res) => {
+  const result = db.prepare("DELETE FROM applications WHERE id = ?").run(req.params.id);
+  if (result.changes === 0) {
+    const err: ApiErrorResponse = { error: "Application not found." };
+    res.status(404).json(err);
+    return;
+  }
+  res.status(204).end();
+});

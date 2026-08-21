@@ -61,6 +61,13 @@ body {
   padding: 2.5rem 1.75rem;
 }
 
+/* The applications sheet needs real width for its columns — widen the
+   page container specifically when it's present, leave narrower reading
+   pages (onboarding) alone. */
+.page:has(.sheet-scroll) {
+  max-width: 1440px;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -365,6 +372,109 @@ body {
 .cell-company {
   font-weight: 600;
 }
+
+.sheet-scroll {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.applications-table.sheet {
+  margin-top: 0;
+  min-width: 900px;
+}
+
+.applications-table.sheet th {
+  padding: 0.6rem 0.5rem;
+  background: #fafafa;
+}
+
+.applications-table.sheet td {
+  padding: 0;
+  border-right: 1px solid var(--border);
+}
+
+.applications-table.sheet td:last-child {
+  border-right: none;
+}
+
+.sheet-cell-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-input,
+.sheet-select {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 0.87rem;
+  color: var(--fg);
+  padding: 0.7rem 0.6rem;
+  border-radius: 0;
+}
+
+.sheet-input:hover,
+.sheet-select:hover {
+  background: #fafafa;
+}
+
+.sheet-input:focus,
+.sheet-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.sheet-cell-sub {
+  padding: 0 0.6rem 0.5rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.sheet-cell-sub:hover {
+  text-decoration: underline;
+}
+
+.sheet-select {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sheet-actions-header { width: 2.5rem; }
+
+.sheet-actions-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sheet-delete-btn {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sheet-delete-btn:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.sheet-select.status-saved { color: #475569; }
+.sheet-select.status-applying { color: #1d4ed8; }
+.sheet-select.status-applied { color: #4338ca; }
+.sheet-select.status-interview { color: #b45309; }
+.sheet-select.status-offer { color: #15803d; }
+.sheet-select.status-rejected { color: #b91c1c; }
 
 .status-badge {
   display: inline-block;
