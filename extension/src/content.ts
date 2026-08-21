@@ -440,7 +440,7 @@ type JobContext = ReturnType<typeof jobContextFromPage>;
 // which is exactly the right lifetime for "remember this across the next
 // page load, but don't leak it into some unrelated future session."
 const CONFIRMATION_PHRASES =
-  /application (has been )?(submitted|received)|thank you for (applying|your application)|we('| ha)ve received your application/i;
+  /application (has been |was )?(submitted|received|complete)|thank you for (applying|your application|your interest)|we('| ha)ve received your application|(successfully|thanks for) appl(y|ying)|you('| ha)ve (successfully )?applied|application (complete|successful)/i;
 
 async function savePendingApplication(jobContext: JobContext): Promise<void> {
   await chrome.runtime.sendMessage({ type: "CAREERPILOT_SAVE_PENDING", jobContext });
