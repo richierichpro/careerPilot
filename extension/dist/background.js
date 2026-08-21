@@ -77,11 +77,15 @@
       return true;
     }
     if (message?.type === "CAREERPILOT_TRIGGER_FILL") {
-      const frameId = formFrameByTab.get(message.tabId);
-      if (frameId !== void 0) {
-        void chrome.tabs.sendMessage(message.tabId, { type: "CAREERPILOT_RUN_FILL" }, { frameId });
-      }
-      return void 0;
+      const frameId = formFrameByTab.get(message.tabId) ?? 0;
+      (async () => {
+        try {
+          await chrome.tabs.sendMessage(message.tabId, { type: "CAREERPILOT_RUN_FILL" }, { frameId });
+        } catch {
+        }
+        sendResponse({ ok: true });
+      })();
+      return true;
     }
     return void 0;
   });

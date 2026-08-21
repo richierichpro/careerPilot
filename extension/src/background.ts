@@ -165,11 +165,21 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   }
 
   if (message?.type === "CAREERPILOT_TRIGGER_FILL") {
-    const frameId = formFrameByTab.get(message.tabId);
-    if (frameId !== undefined) {
-      void chrome.tabs.sendMessage(message.tabId, { type: "CAREERPILOT_RUN_FILL" }, { frameId });
-    }
-    return undefined;
+    // The cache can go stale between the popup opening (when it was last
+    // confirmed) and the click (a stray tab-loading event can clear it in
+    // between) — falling back to the top frame directly means a click
+    // never just silently does nothing because of that gap.
+    const frameId = formFrameByTab.get(message.tabId) ?? 0;
+    (async () => {
+      try {
+        await chrome.tabs.sendMessage(message.tabId, { type: "CAREERPILOT_RUN_FILL" }, { frameId });
+      } catch {
+        // No content script listening in that frame anymore (e.g. the tab
+        // navigated away) — nothing to run.
+      }
+      sendResponse({ ok: true });
+    })();
+    return true;
   }
 
   return undefined;

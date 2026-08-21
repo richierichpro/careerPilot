@@ -25,8 +25,7 @@
       if (!applyBtn || !tab.id) return;
       applyBtn.disabled = true;
       applyBtn.textContent = "Filling\u2026";
-      void chrome.runtime.sendMessage({ type: "CAREERPILOT_TRIGGER_FILL", tabId: tab.id });
-      window.close();
+      chrome.runtime.sendMessage({ type: "CAREERPILOT_TRIGGER_FILL", tabId: tab.id }).finally(() => window.close());
     });
   }
   void initApplyButton();

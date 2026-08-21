@@ -36,12 +36,16 @@ async function initApplyButton(): Promise<void> {
     if (!applyBtn || !tab.id) return;
     applyBtn.disabled = true;
     applyBtn.textContent = "Filling…";
-    void chrome.runtime.sendMessage({ type: "CAREERPILOT_TRIGGER_FILL", tabId: tab.id });
-    // The actual fill runs on the page (bgFetch/AI calls need that
-    // context) and can take 10-20+ seconds — closing the popup here
-    // (rather than leaving it stuck on "Filling…") lets the user see the
-    // page's own progress panel immediately instead of a frozen popup.
-    window.close();
+    // Closing the popup right after firing sendMessage (without waiting
+    // for it to actually land) was a real, intermittent bug — the popup's
+    // JS context could tear down before the message finished being
+    // dispatched to the background, so the fill sometimes silently never
+    // started at all. Awaiting the round-trip first (even though the
+    // response has no real payload) guarantees the message was actually
+    // delivered before the popup that sent it goes away.
+    chrome.runtime
+      .sendMessage({ type: "CAREERPILOT_TRIGGER_FILL", tabId: tab.id })
+      .finally(() => window.close());
   });
 }
 
