@@ -27,11 +27,50 @@ const SKIPPED_INPUT_TYPES = new Set([
   "button",
   "reset",
   "file",
-  "password",
+  "password", // handled separately by fillPasswordFields — never sent to the AI or our server
   "image",
   "checkbox",
   "radio",
 ]);
+
+// Generated and filled entirely client-side — never sent to our backend.
+// Persistence relies on Chrome's own (already encrypted, already trusted)
+// password manager rather than us building a credential store under time
+// pressure, which is exactly the kind of thing that's easy to get wrong.
+function generatePassword(): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const symbols = "!@#$%^&*-_=+";
+  const all = upper + lower + digits + symbols;
+  const randomChar = (set: string) => set[crypto.getRandomValues(new Uint32Array(1))[0] % set.length];
+
+  const required = [randomChar(upper), randomChar(lower), randomChar(digits), randomChar(symbols)];
+  const rest = Array.from({ length: 12 }, () => randomChar(all));
+  const chars = [...required, ...rest];
+
+  // Fisher-Yates, using crypto randomness rather than Math.random
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
+
+function fillPasswordFields(): string | null {
+  const passwordInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+  ).filter((el) => isVisible(el) && el.value.trim().length === 0);
+
+  if (passwordInputs.length === 0) return null;
+
+  const password = generatePassword();
+  for (const el of passwordInputs) {
+    el.setAttribute("autocomplete", "new-password");
+    setNativeValue(el, password);
+  }
+  return password;
+}
 
 function isVisible(el: HTMLElement): boolean {
   return !!el.offsetParent || el.getClientRects().length > 0;
@@ -218,9 +257,18 @@ class ApplyWidget {
     this.button.disabled = true;
     this.setPanel(`<div class="cp-status">Reading the application form…</div>`);
 
+    const generatedPassword = fillPasswordFields();
     const extracted = extractFields();
-    if (extracted.length === 0) {
+
+    if (extracted.length === 0 && !generatedPassword) {
       this.setPanel(`<div class="cp-status cp-error">No form fields found on this page.</div>`);
+      this.button.disabled = false;
+      return;
+    }
+
+    if (extracted.length === 0 && generatedPassword) {
+      this.setPanel(this.passwordPanelHtml(generatedPassword));
+      this.attachCopyPasswordHandler();
       this.button.disabled = false;
       return;
     }
@@ -312,8 +360,32 @@ class ApplyWidget {
         Filled ${filled} of ${extracted.length} fields.
         ${needsReview > 0 ? `<strong>${needsReview} need your review</strong> (dashed orange outline).` : "Review the highlighted fields, then submit."}
       </div>
+      ${generatedPassword ? this.passwordNoteHtml(generatedPassword) : ""}
     `);
+    this.attachCopyPasswordHandler();
     this.button.disabled = false;
+  }
+
+  private passwordPanelHtml(password: string): string {
+    return `<div class="cp-status cp-done">Generated an account password.</div>${this.passwordNoteHtml(password)}`;
+  }
+
+  private passwordNoteHtml(password: string): string {
+    return `
+      <div class="cp-password-note">
+        Password: <code>${password}</code>
+        <button type="button" class="cp-copy-btn" data-password="${password}">Copy</button>
+        <div class="muted">Chrome should offer to save this — if it doesn't, copy it now.</div>
+      </div>
+    `;
+  }
+
+  private attachCopyPasswordHandler() {
+    this.panel.querySelector(".cp-copy-btn")?.addEventListener("click", (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      void navigator.clipboard.writeText(btn.dataset.password ?? "");
+      btn.textContent = "Copied";
+    });
   }
 
   // Real ATS platforms signal a successful submission very differently —
@@ -389,6 +461,19 @@ const WIDGET_CSS = `
   .cp-panel.visible { display: block; }
   .cp-status.cp-error { color: #991b1b; }
   .cp-status.cp-done { color: #166534; }
+  .cp-password-note {
+    margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #eee;
+    color: #17181c;
+  }
+  .cp-password-note code {
+    background: #f1f5f9; padding: 0.1rem 0.4rem; border-radius: 4px;
+    font-size: 0.8rem;
+  }
+  .cp-copy-btn {
+    margin-left: 0.4rem; font-size: 0.75rem; padding: 0.15rem 0.5rem;
+    border-radius: 4px; border: 1px solid #d1d5db; background: #fff; cursor: pointer;
+  }
+  .cp-password-note .muted { color: #6b7280; font-size: 0.78rem; margin-top: 0.3rem; }
 `;
 
 new ApplyWidget();
