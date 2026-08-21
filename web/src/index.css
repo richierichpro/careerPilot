@@ -214,6 +214,116 @@ body {
   font-size: 0.82rem;
 }
 
+.pipeline {
+  display: flex;
+  margin-top: 1.5rem;
+}
+
+.pipeline-step {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  padding: 0.9rem 1.2rem 0.9rem 1.6rem;
+  margin-right: -1px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
+}
+
+.pipeline-step:first-child {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+  padding-left: 1.2rem;
+  border-radius: 8px 0 0 8px;
+}
+
+.pipeline-step:last-child {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);
+  border-radius: 0 8px 8px 0;
+}
+
+.pipeline-step:not(:first-child) {
+  z-index: 0;
+}
+
+.pipeline-count {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pipeline-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.applications-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.applications-search {
+  flex: 1;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
+.add-job-btn {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.add-job-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.add-job-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.add-job-form {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.add-job-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.add-job-row input,
+.add-job-row select,
+.add-job-notes {
+  flex: 1;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  min-width: 0;
+}
+
 .applications-table {
   width: 100%;
   margin-top: 1.5rem;
