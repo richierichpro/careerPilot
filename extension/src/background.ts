@@ -35,7 +35,7 @@ type ExtensionMessage =
   | PeekPendingRequest
   | ClearPendingRequest;
 
-const SERVER_URL = "http://localhost:8787";
+const SERVER_URL = "https://careerpilot-production-4b72.up.railway.app";
 const PENDING_KEY = "careerpilot_pending_application";
 const PENDING_MAX_AGE_MS = 30 * 60 * 1000;
 
