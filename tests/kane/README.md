@@ -533,3 +533,43 @@ curl against the real captured page text (above); the retry logic
 itself mirrors the already-proven `watchForFillableForm` pattern rather
 than new, unverified logic. The real Google application was recorded
 manually in the meantime with an honest note explaining why.
+
+### 2026-08-21 — Real bug: a Yes/No dropdown got typed into instead of selected
+
+**Found by:** the user, live, while applying on a real site (a separate
+Chrome profile the agent had no CDP access to) — a Yes/No question that
+looked like a dropdown got a literal string typed into it instead of
+actually being selected.
+
+**Root cause:** `isComboboxInput()` only treated an input as a
+dropdown/picker if it carried explicit ARIA combobox markup (`role`,
+`aria-autocomplete`, `aria-expanded`, `aria-controls`). Plenty of real
+custom dropdown widgets — a simple Yes/No picker especially — skip all
+of that and are just a plain `<input>` with no ARIA attributes at all,
+usually marked `readonly` so the user can't type freely into it. Since
+none of the ARIA checks matched, the field fell straight to
+`setNativeValue()` (plain text-typing) instead of ever attempting the
+combobox open-and-click flow — text appeared in the field but nothing
+was actually selected in the site's real state.
+
+**Fix:** widened `isComboboxInput()` to also treat any `readonly` input
+as a dropdown candidate — a genuinely free-text field is essentially
+never readonly, so this is a strong, low-risk signal. Also added an
+explicit `focus()` + `click()` before typing in `searchComboboxOptions()`,
+since a static option list (unlike a search-as-you-type combobox) may
+only open on a real click, not a synthetic value change.
+`fillComboboxInput()`'s existing "no popup ever opened → just keep the
+typed text" fallback means a `readonly` field that turns out not to be
+a real dropdown behaves exactly as before — this only adds a new,
+previously-unattempted path, it doesn't remove the old one.
+
+**Not independently re-verified live** — the agent had no CDP access to
+the browser profile where this was found, and repeated attempts to
+reproduce it via a synthetic test on the local demo/CDP test instance
+hit unrelated CDP tooling flakiness (`Page.navigate` not resolving
+cleanly through the ad hoc test harness) rather than yielding a signal
+either way. The fix reuses the exact same combobox pipeline already
+proven correct for the Stripe school-dropdown case earlier in this
+project, with its existing fallback intact, but this specific fix is
+disclosed as shipped on code-review confidence rather than a fresh live
+confirmation — flagged here rather than glossed over.

@@ -281,7 +281,16 @@ function isComboboxInput(el: HTMLInputElement): boolean {
     el.getAttribute("role") === "combobox" ||
     el.hasAttribute("aria-autocomplete") ||
     el.hasAttribute("aria-expanded") ||
-    el.hasAttribute("aria-controls")
+    el.hasAttribute("aria-controls") ||
+    // A field the candidate can't type real text into is never a plain
+    // free-text field — it's a dropdown/picker trigger dressed up as an
+    // input, just without ARIA markup declaring it as one (a confirmed
+    // real example: a Yes/No dropdown that got a literal string typed
+    // into it instead of actually being selected, because it had none of
+    // the ARIA attributes above). fillComboboxInput already falls back to
+    // plain typing if this guess is wrong and no popup ever opens, so
+    // widening the guess here is low-risk.
+    el.readOnly
   );
 }
 
@@ -318,6 +327,11 @@ function mostDistinctiveWord(value: string): string | null {
 }
 
 async function searchComboboxOptions(el: HTMLInputElement, query: string): Promise<HTMLElement[]> {
+  // Some dropdown widgets (a static Yes/No picker, for example) only open
+  // their option list on a real click/focus, not on a synthetic value
+  // change — harmless to do for a genuine search-as-you-type combobox too.
+  el.focus();
+  el.click();
   setNativeValue(el, query);
   el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true }));
   el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
