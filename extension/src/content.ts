@@ -476,8 +476,26 @@ const WIDGET_CSS = `
   .cp-password-note .muted { color: #6b7280; font-size: 0.78rem; margin-top: 0.3rem; }
 `;
 
-// Don't show the widget on our own web app — it has nothing to fill and
-// would just be visual clutter on the onboarding/tracker pages.
-if (!document.querySelector(".app-shell")) {
+// With all_frames enabled (needed for iframe-embedded ATS forms — see
+// below), this script runs in every frame on the page: trackers, ad
+// iframes, reCAPTCHA, etc. Only mount the widget in a frame that actually
+// looks like it has a form worth filling, and never on our own web app.
+function frameHasFillableForm(): boolean {
+  return Array.from(document.querySelectorAll<HTMLInputElement>("input")).some(
+    (el) => !SKIPPED_INPUT_TYPES.has(el.type),
+  ) || document.querySelector("select, textarea") !== null;
+}
+
+// Real ATS integrations very commonly embed the actual application form in
+// a cross-origin iframe (Greenhouse's job-boards.greenhouse.io embed widget
+// behind a company's own careers page is the single most common example —
+// the top-level page itself often has zero form fields). A content script
+// only sees the frame it's injected into, so with all_frames: true in the
+// manifest, this same script runs separately inside that iframe too, and
+// mounts its own independent widget scoped to that frame's own form —
+// extraction, autofill, and submission-detection all happen local to
+// whichever frame actually holds the fields, no cross-frame messaging
+// needed.
+if (!document.querySelector(".app-shell") && frameHasFillableForm()) {
   new ApplyWidget();
 }
