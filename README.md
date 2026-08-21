@@ -4,11 +4,50 @@ An AI-powered job application assistant. Upload a resume once — Claude turns
 it into a structured Career Profile, grounded strictly in what the resume
 actually says. A Chrome extension then reads real job application forms,
 semantically answers each question from that profile (never inventing
-experience), fills the form, and records the submission in a live tracker.
+experience), fills the form, and records the submission in a live tracker —
+detected by Claude actually reading the confirmation page, not a URL/regex
+heuristic.
 
-Built with **Claude Code**. Verified end-to-end with **Kane CLI** — see
-[tests/kane/README.md](tests/kane/README.md) for real run history, including
-a genuine bug Kane caught in the hero flow and how it was fixed.
+Built with **Claude Code**. Verified with **Kane CLI** driving real browser
+sessions against both a local demo page and live external job sites.
+
+### 📋 [Kane CLI test log — real run history](tests/kane/README.md)
+
+Every verification run is logged honestly, including the ones that failed —
+most notably a real incident where Kane accidentally submitted a live
+application despite an explicit instruction not to, caught by independently
+verifying rather than trusting its own self-report, and fixed.
+
+## Live
+
+- Web app: https://web-production-c0649.up.railway.app
+- Backend API: https://careerpilot-production-4b72.up.railway.app
+
+## Try it — Chrome extension
+
+The extension is pre-built and committed to the repo, so there's no install
+step beyond loading it into Chrome:
+
+1. `git clone https://github.com/richierichpro/careerPilot.git`
+2. Open `chrome://extensions`, toggle **Developer mode** on (top right)
+3. Click **Load unpacked** → select the `extension/` folder
+4. Open the web app link above and upload a resume — Claude extracts your
+   Career Profile
+5. Open any real job application page (field detection is generic —
+   `label[for]`, wrapping `<label>`, `aria-label`, `aria-labelledby`, then
+   `placeholder` — not tied to any one site's markup) and click the
+   extension's icon in the toolbar
+6. If a fillable form was detected on the page, an **Apply with AI** button
+   appears in the popup — click it and keep the popup open to watch live
+   progress ("Reading the form…", "AI is answering N fields…", "Filled X of
+   Y fields")
+7. Review the highlighted fields — solid blue outline for what the AI
+   filled, dashed orange for anything it couldn't ground in your profile and
+   left for you to fill in yourself — then submit the form yourself; the
+   extension never auto-submits
+8. Open the Applications link in the popup — the submission is recorded
+   automatically once Claude reads the resulting confirmation page and
+   determines it's genuinely a match for that application
 
 ## Structure
 
@@ -22,44 +61,26 @@ a genuine bug Kane caught in the hero flow and how it was fixed.
 /tests/kane Kane CLI verification flows, fixtures, and the run log
 ```
 
-## Setup
+## Running it locally (optional — the extension works against the live backend above without this)
 
-Requires Node.js 20+.
+Requires Node.js 22+.
 
 ```bash
 npm install
 cp server/.env.example server/.env   # then fill in ANTHROPIC_API_KEY
-```
-
-## Running
-
-```bash
 npm run dev:server   # API on http://localhost:8787
-npm run dev:web      # web app — watch the terminal for the port (5173, or 5174 if that's taken)
+npm run dev:web      # web app — watch the terminal for the port
 ```
 
-## Try the full flow
-
-1. Open `http://localhost:5173/onboarding` (or whichever port `dev:web` printed) and upload a resume (PDF/DOC/DOCX/TXT). Claude extracts a structured Career Profile — watch it appear below the upload.
-2. Load the Chrome extension (below), then open `http://localhost:5173/demo/northwind-backend-engineer` — a realistic fictional job application page, or any real job application form (field detection is generic — `label[for]`, wrapping `<label>`, `aria-label`, `aria-labelledby`, then `placeholder` — not tied to our demo page's markup).
-3. Click the **Apply with AI** button in the bottom-right corner. The extension reads the form, calls the backend for AI-generated answers grounded in your Career Profile, and fills every field — blue outline for fields it filled, dashed orange for anything it couldn't ground in your profile and left for you to fill in yourself.
-4. Review, then click **Submit Application** yourself — the extension never auto-submits.
-5. Open `http://localhost:5173/applications` — the submission is recorded automatically (detected via the demo page's confirmation panel, or a generic "application submitted" phrase heuristic on other sites).
-
-### Loading the extension
-
-Chrome's `--load-extension` command-line flag doesn't fully register content
-scripts on recent Chrome versions, so use the real UI flow:
-
-1. `npm run build --workspace=extension`
-2. Open `chrome://extensions`, toggle **Developer mode** on (top right)
-3. Click **Load unpacked** → select the `extension/` folder (not `extension/dist`)
+To point a locally-built extension at your local server instead of the
+deployed one, edit `SERVER_URL` in `extension/src/background.ts` and
+`extension/src/popup.ts`, then `npm run build --workspace=extension`.
 
 ## Status
 
-All core milestones complete: resume upload, Anthropic-powered profile
-extraction, SQLite-backed application tracker, a demo job application page,
-and the full Chrome extension (field detection → AI answer generation →
-autofill → submission tracking). See commit history — each milestone landed
-as its own small commit — and [tests/kane/README.md](tests/kane/README.md)
-for verification evidence.
+All core milestones complete and deployed: resume upload, Anthropic-powered
+profile extraction, a JSON-backed application tracker, a demo job
+application page, and the full Chrome extension (field detection → AI
+answer generation → autofill → AI-verified submission tracking). See commit
+history — each milestone landed as its own small commit — and
+[tests/kane/README.md](tests/kane/README.md) for verification evidence.
