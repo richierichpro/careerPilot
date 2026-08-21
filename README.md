@@ -17,6 +17,8 @@ Every verification run is logged honestly, including the ones that failed —
 most notably a real incident where Kane accidentally submitted a live
 application despite an explicit instruction not to, caught by independently
 verifying rather than trusting its own self-report, and fixed.
+<img width="1440" height="900" alt="Screenshot 2026-08-21 at 11 44 58 PM" src="https://github.com/user-attachments/assets/cbe5911c-d7ae-4c22-8efb-cf2aa82321ee" />
+
 
 ## Load the extension
 
