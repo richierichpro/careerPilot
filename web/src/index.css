@@ -64,3 +64,68 @@ body {
 .muted {
   color: var(--muted);
 }
+
+.small {
+  font-size: 0.85rem;
+}
+
+.dropzone {
+  margin-top: 1.5rem;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropzone:hover {
+  border-color: var(--accent);
+}
+
+.dropzone.dragging {
+  border-color: var(--accent);
+  background: #f0f5ff;
+}
+
+.dropzone.busy {
+  cursor: default;
+  color: var(--muted);
+}
+
+.dropzone-title {
+  font-weight: 500;
+  margin: 0 0 0.35rem;
+}
+
+.callout {
+  margin-top: 1.5rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.callout.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.callout.success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.link-button {
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}

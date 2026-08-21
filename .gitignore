@@ -12,3 +12,4 @@ server/data/
 extension/dist/
 web/dist/
 .kane/
+.claude/

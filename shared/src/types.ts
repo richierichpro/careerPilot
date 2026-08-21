@@ -45,3 +45,14 @@ export interface HealthCheckResponse {
   service: string;
   timestamp: string;
 }
+
+export interface ResumeUploadResponse {
+  resumeId: string;
+  filename: string;
+  size: number;
+  uploadedAt: string;
+}
+
+export interface ApiErrorResponse {
+  error: string;
+}
