@@ -5,6 +5,52 @@ the result, and (when Kane catches something) how the agent responded.
 
 ## Runs
 
+### 2026-08-21 — Five real bugs found via live hands-on testing (not Kane-driven)
+
+Disclosed honestly: this round of fixes came from the user directly using the
+extension on real job sites (Stripe/Greenhouse, Figma/Greenhouse, McKinsey)
+and reporting exactly what broke, with the agent verifying each fix via
+direct browser inspection (CDP) rather than Kane — debugging a live,
+rapidly-changing issue needed faster, more precise answers than natural-
+language-driven automation could give in the time available. This is
+disclosed rather than presented as Kane-verified.
+
+1. **Typeahead comboboxes silently "succeeding" with nothing selected** —
+   a School field showed AI-typed text but Greenhouse's own search
+   returned "No options" for that exact phrasing (dash vs no-dash
+   formatting mismatch), and the code treated zero-results as
+   "not really a combobox, keep the text" instead of "a real search that
+   failed." Fixed with normalization + a keyword-based retry, verified
+   directly: typing "University of Illinois Urbana-Champaign" now
+   correctly finds and clicks "University of Illinois - Urbana-Champaign"
+   from 15 real Greenhouse search results.
+2. **Checkbox/radio groups entirely unhandled** — a "which countries do
+   you anticipate working in" field (30 real checkboxes in a
+   `<fieldset>`) was silently skipped. Now extracted and filled via the
+   standard `<fieldset><legend>` accessible pattern.
+3. **Submission tracking silently failing on real ATS navigation** — user
+   report: "i submitted this [Figma/Greenhouse URL] and it's not
+   triggering in my applications." Root cause confirmed directly:
+   Greenhouse navigates to a genuinely new URL on submit
+   (`.../jobs/123` → `.../jobs/123/confirmation`), which destroys the
+   content script's JS context entirely — the previous same-page
+   MutationObserver approach could never see a real navigation. Fixed
+   with `chrome.storage.session`-backed persistence across the
+   navigation (proxied through the background script), verified
+   end-to-end via a simulated navigation to a confirmation-like URL,
+   which correctly appeared in the tracker afterward.
+4. **Wrong company name recorded** — the same real submission recorded as
+   "Greenhouse" instead of "Figma," because the company-identity
+   capture ran inside the Greenhouse iframe (where the form lives), which
+   has no `og:site_name` for the real employer — it fell back to
+   guessing from `job-boards.greenhouse.io`'s own hostname. Fixed by
+   parsing the company slug directly out of Greenhouse's own URL
+   structure (`/{company-slug}/jobs/{id}`) as a higher-priority signal.
+
+All fixes verified against the exact real pages/data that surfaced them,
+plus a demo-page regression check after each change (no functional
+change to the already-verified hero flow).
+
 ### 2026-08-21 — Real bug: iframe-embedded ATS forms weren't detected at all
 
 **How it was found:** a real end-user test on an actual Stripe job posting
