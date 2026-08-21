@@ -12,4 +12,5 @@ server/data/
 extension/dist/
 web/dist/
 .kane/
+.testmuai/
 .claude/

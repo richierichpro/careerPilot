@@ -449,7 +449,16 @@ type JobContext = ReturnType<typeof jobContextFromPage>;
 // which is exactly the right lifetime for "remember this across the next
 // page load, but don't leak it into some unrelated future session."
 async function savePendingApplication(jobContext: JobContext): Promise<void> {
-  await chrome.runtime.sendMessage({ type: "CAREERPILOT_SAVE_PENDING", jobContext });
+  try {
+    await chrome.runtime.sendMessage({ type: "CAREERPILOT_SAVE_PENDING", jobContext });
+  } catch (err) {
+    // Silent failure here (e.g. an orphaned content script after an
+    // extension reload, or the background worker being unreachable) used to
+    // mean this application would never get auto-tracked, with zero signal
+    // that anything went wrong. Surfacing it at least makes the failure
+    // visible in the page console instead of invisible.
+    console.warn("CareerPilot: could not save pending-application flag — auto-tracking for this application may not fire.", err);
+  }
 }
 
 // Regex-based "does this look like a confirmation" heuristics kept
@@ -473,6 +482,23 @@ async function detectConfirmationWithAI(jobContext: JobContext): Promise<boolean
     if (!res.ok) return false;
     const { submitted } = res.body as { submitted: boolean; reasoning: string };
     return submitted;
+  } catch {
+    return false;
+  }
+}
+
+// Fields the AI couldn't ground (e.g. pronouns, gender) get flagged for the
+// candidate to fill in by hand. When they do, that answer is worth more than
+// this one form — save it back to the profile so the next application never
+// asks again.
+async function learnAnswer(profileId: string, label: string, value: string): Promise<boolean> {
+  try {
+    const res = await bgFetch(`/api/profile/${profileId}/learn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label, value }),
+    });
+    return res.ok;
   } catch {
     return false;
   }
@@ -523,7 +549,13 @@ async function checkAndRecordPendingApplication(): Promise<void> {
   // one tracker entry than risk double-recording on a reload of this
   // same confirmation page.
   await chrome.runtime.sendMessage({ type: "CAREERPILOT_CLEAR_PENDING" });
-  await recordApplicationToServer(jobContext);
+  const ok = await recordApplicationToServer(jobContext);
+  showToast(
+    ok
+      ? `✓ Application to ${jobContext.company} recorded in your CareerPilot tracker.`
+      : `Application to ${jobContext.company} submitted, but couldn't be recorded in CareerPilot.`,
+    ok ? "success" : "error",
+  );
 }
 
 class ApplyWidget {
@@ -647,6 +679,7 @@ class ApplyWidget {
       if (entry.checkboxOptions) {
         if (!answer.grounded || !answer.value.trim()) {
           needsReview++;
+          this.watchForLearnableCheckboxGroup(entry.checkboxOptions, entry.field.label, profile.id);
           continue;
         }
         const target = answer.value.trim().toLowerCase();
@@ -672,6 +705,7 @@ class ApplyWidget {
         element.style.outline = "2px dashed #b45309";
         element.style.outlineOffset = "2px";
         element.title = "CareerPilot: not found in your profile — please fill this in yourself.";
+        this.watchForLearnableAnswer(element, entry.field.label, profile.id);
         continue;
       }
 
@@ -709,6 +743,47 @@ class ApplyWidget {
     this.button.disabled = false;
   }
 
+  // A field the AI couldn't ground is left for the candidate to fill by
+  // hand. The first time they do (change or blur, whichever fires first —
+  // both are removed together so it can only fire once), record it against
+  // the profile so it's grounded truth on every future application.
+  private watchForLearnableAnswer(element: FormControl, label: string, profileId: string) {
+    const handler = () => {
+      const value = element.value.trim();
+      element.removeEventListener("change", handler);
+      element.removeEventListener("blur", handler);
+      if (!value) return;
+      void learnAnswer(profileId, label, value).then((ok) => {
+        if (ok) {
+          element.style.outline = "2px solid #16a34a";
+          element.title = "CareerPilot learned this answer — it'll auto-fill next time.";
+        }
+      });
+    };
+    element.addEventListener("change", handler);
+    element.addEventListener("blur", handler);
+  }
+
+  private watchForLearnableCheckboxGroup(
+    options: CheckboxOption[],
+    label: string,
+    profileId: string,
+  ) {
+    const handlers: Array<[HTMLInputElement, () => void]> = [];
+    const cleanup = () => {
+      for (const [input, h] of handlers) input.removeEventListener("change", h);
+    };
+    for (const opt of options) {
+      const handler = () => {
+        if (!opt.input.checked) return;
+        cleanup();
+        void learnAnswer(profileId, label, opt.label);
+      };
+      handlers.push([opt.input, handler]);
+      opt.input.addEventListener("change", handler);
+    }
+  }
+
   private passwordPanelHtml(password: string): string {
     return `<div class="cp-status cp-done">Generated an account password.</div>${this.passwordNoteHtml(password)}`;
   }
@@ -732,12 +807,11 @@ class ApplyWidget {
   }
 
   // Real ATS platforms signal a successful submission very differently —
-  // a redirect, a toast, a swapped-in "thank you" panel. There's no single
-  // reliable generic signal, so this combines our own demo page's exact
-  // marker with a best-effort phrase heuristic for other sites. It can
-  // both miss real confirmations and false-positive on unrelated text —
-  // it's a heuristic, not a guarantee, which is why the widget always
-  // shows what it did rather than silently trusting this.
+  // a redirect, a toast, a swapped-in "thank you" panel — with no single
+  // reliable generic signal. Our own demo page gets an instant exact-match
+  // fast path; every other site is judged by detectConfirmationWithAI,
+  // which reads the swapped-in page content the same way a person would
+  // rather than matching it against a fixed pattern.
   private watchForSubmission() {
     let checking = false;
 
@@ -779,6 +853,12 @@ class ApplyWidget {
         ? `<div class="cp-status cp-done">✓ Recorded in your CareerPilot tracker.</div>`
         : `<div class="cp-status cp-error">Application submitted, but couldn't record it in CareerPilot.</div>`,
     );
+    showToast(
+      ok
+        ? `✓ Application to ${ctx.company} recorded in your CareerPilot tracker.`
+        : `Application to ${ctx.company} submitted, but couldn't be recorded in CareerPilot.`,
+      ok ? "success" : "error",
+    );
   }
 }
 
@@ -816,6 +896,38 @@ const WIDGET_CSS = `
   }
   .cp-password-note .muted { color: #6b7280; font-size: 0.78rem; margin-top: 0.3rem; }
 `;
+
+// Confirmation is very often detected on a page that never mounts the
+// ApplyWidget at all (a bare confirmation/dashboard page usually has no
+// form fields), so "recorded" can't rely on the widget's own panel to tell
+// the candidate what happened. This is a standalone, always-available
+// notice, in its own shadow host so it survives regardless of whether a
+// widget exists on this page.
+function showToast(message: string, kind: "success" | "error" = "success") {
+  const host = document.createElement("div");
+  host.id = "careerpilot-toast-host";
+  document.body.appendChild(host);
+  const shadow = host.attachShadow({ mode: "open" });
+  const style = document.createElement("style");
+  style.textContent = `
+    .cp-toast {
+      position: fixed; bottom: 24px; right: 20px; z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fff; color: #17181c; border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2); padding: 0.85rem 1.1rem;
+      font-size: 0.88rem; line-height: 1.4; max-width: 300px;
+      border-left: 4px solid ${kind === "success" ? "#16a34a" : "#b45309"};
+      animation: cp-toast-in 0.2s ease-out;
+    }
+    @keyframes cp-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  `;
+  shadow.appendChild(style);
+  const toast = document.createElement("div");
+  toast.className = "cp-toast";
+  toast.textContent = message;
+  shadow.appendChild(toast);
+  setTimeout(() => host.remove(), 6000);
+}
 
 // With all_frames enabled (needed for iframe-embedded ATS forms — see
 // below), this script runs in every frame on the page: trackers, ad

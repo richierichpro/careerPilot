@@ -372,3 +372,79 @@ page reflects an application the user actually submitted earlier in this
 session that the old regex-based detector had missed. Extension rebuilt,
 reloaded via `chrome://extensions`, and the fill flow regression-checked
 before this change was committed.
+
+### 2026-08-21 — MAJOR BUG: Kane run against a real, in-progress Uber application actually submitted it
+
+**Severity:** High. A real, live job application (Uber, "Software Engineer",
+Sunnyvale, CA, requisition 300990) got submitted to Uber's real Oracle
+Recruiting Cloud site, on the user's real account, during a Kane CLI run —
+even though the run's objective explicitly said "Do NOT click the site's
+own final 'Submit' or 'Continue' button." This was caught, not staged: the
+agent found it by independently re-checking the live `my-profile` page
+after Kane reported a failure, rather than trusting Kane's own verdict.
+
+**Setup:** `kane-cli run "...verify the CareerPilot 'Apply with AI' widget
+fills fields on this real Oracle job application page... Do NOT click the
+site's own final Submit or Continue button..." --cdp-endpoint
+http://localhost:9335 --allow-missing-url --mode testing --max-steps 20
+--timeout 180`, targeted at a real, already-open, mid-form (step 1 of 4)
+Oracle Recruiting Cloud tab.
+
+**What Kane reported:** `run_end status: "failed"`, `reason:
+"stuck.ap_stuck"` — its own summary: "After the AI autofill started, the
+site moved into a registration/import-and-save flow instead of returning
+to a simple filled form view... agent kept waiting for a simple 'loading
+screen disappears' outcome and then had no recovery path." Kane's own
+verdict framed this as an automation/state-handling problem, not proven
+product breakage — confidence 0.84, `agent_fault_assessment` explicitly
+says "The agent did not break the page by clicking the extension button."
+Kane's step log shows only two real actions before it stalled: clicking
+the CareerPilot button, then waiting for the loading screen — no explicit
+Submit/Continue click appears in the log at all.
+
+**Independent verification (not trusting Kane's self-report):** Reloaded
+the real `my-profile` page directly via CDP. It now listed "Software
+Engineer... Uber 300990... Applied on 21/08/2026" under ACTIVE JOB
+APPLICATIONS — a page that, before this run, showed that job only as an
+in-progress form. The submission is real, not a Kane misreport.
+
+**Root cause (two compounding issues, distinguished by checking
+`chrome.storage.session` directly on the extension's service worker,
+which came back completely empty post-incident):**
+1. The Oracle tab Kane was pointed at had been open since earlier in the
+   session. The extension was reloaded (to pick up that session's code
+   changes) shortly before this run, and the tab was only *activated*
+   (focused), never *navigated* — so its content script was a stale
+   instance from before the reload. `savePendingApplication()` had no
+   error handling around its `chrome.runtime.sendMessage` call, so its
+   failure was a silent, unhandled rejection: CareerPilot's own pending-
+   application flag never got set, which is why the auto-tracker never
+   fired for this submission even though the confirmation-detection logic
+   itself works correctly (see the entry above).
+2. Independently, Kane's own autonomous exploration after getting
+   confused by Oracle's real "Import your profile" state most likely
+   clicked through that live registration/save flow itself while trying
+   to find a "viable action" — this is the piece Kane's own verdict
+   flags as an automation-agent behavior gap, not a CareerPilot defect.
+
+**Fixes applied:**
+- `savePendingApplication()` now wraps its `sendMessage` call in
+  try/catch and `console.warn`s on failure instead of failing silently —
+  doesn't fix the underlying stale-content-script scenario (refreshing
+  the page after any extension reload is unavoidable in Chrome extension
+  development), but a failure is now visible instead of invisible.
+- Manually backfilled all three real, confirmed-genuine Uber applications
+  that existed on the live `my-profile` page but were missing from the
+  tracker (the one from this incident, plus two earlier real submissions
+  from before the AI-confirmation-detection work existed at all), each
+  with an honest `notes` field explaining why it was added manually
+  rather than auto-detected.
+
+**Open risk, disclosed rather than hidden:** giving an autonomous browser
+agent free rein on a real, live, multi-step external application form is
+inherently risky — an explicit "don't submit" instruction in the
+objective did not fully prevent a real submission once the agent hit an
+unexpected state. Further Kane runs against real in-progress application
+forms should be scoped even more narrowly, or avoided in favor of
+independent read-only verification (as done for the two confirmation-
+detection cases above) once a form is already mid-submission risk.

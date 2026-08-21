@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { CareerProfile } from "@careerpilot/shared";
 
 function dateRange(start?: string, end?: string): string | null {
@@ -27,6 +28,23 @@ export default function ProfileView({ profile }: { profile: CareerProfile }) {
           <p className="muted small">No contact details found in resume.</p>
         )}
       </div>
+
+      {profile.customAnswers && Object.keys(profile.customAnswers).length > 0 && (
+        <ProfileSection title="Learned Answers">
+          <p className="muted small">
+            Filled in by hand once on a real application, then remembered —
+            reused automatically on every application after.
+          </p>
+          <dl className="fact-grid">
+            {Object.entries(profile.customAnswers).map(([label, value]) => (
+              <Fragment key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </ProfileSection>
+      )}
 
       <ProfileSection title="Work Authorization & Salary">
         <dl className="fact-grid">

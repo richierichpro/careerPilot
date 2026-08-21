@@ -61,8 +61,14 @@ const AUTOFILL_SYSTEM_PROMPT = [
   "example a portfolio URL when none is listed), set grounded to false and",
   "value to an empty string — do not guess or fabricate a plausible-looking",
   "answer. Set grounded to true only when the value is actually backed by",
-  "the profile or job context. Return exactly one answer per field id given,",
-  "in the same order, echoing the id exactly.",
+  "the profile or job context. The profile may also include a customAnswers",
+  "map of label -> value pairs the candidate typed in themselves on an",
+  "earlier application, for questions the resume itself never covers",
+  "(pronouns, gender, work-authorization specifics, and similar). Treat a",
+  "customAnswers entry as grounded truth and reuse its value whenever a",
+  "field's label clearly matches it by meaning, even if the exact wording",
+  "differs from the label it was originally learned under. Return exactly",
+  "one answer per field id given, in the same order, echoing the id exactly.",
 ].join(" ");
 
 export const autofillRouter = Router();
