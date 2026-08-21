@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // src/popup.ts
-  var SERVER_URL = "http://localhost:8787";
+  var SERVER_URL = "https://careerpilot-production-4b72.up.railway.app";
   var WEB_URL = "http://localhost:5174";
   function setRow(prefix, status, title, detail) {
     const dot = document.getElementById(`${prefix}-dot`);

@@ -1,6 +1,6 @@
 import type { CareerProfile } from "@careerpilot/shared";
 
-const SERVER_URL = "http://localhost:8787";
+const SERVER_URL = "https://careerpilot-production-4b72.up.railway.app";
 const WEB_URL = "http://localhost:5174";
 
 function setRow(prefix: string, status: "ok" | "bad" | "neutral", title: string, detail: string) {
