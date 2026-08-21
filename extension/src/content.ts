@@ -476,4 +476,8 @@ const WIDGET_CSS = `
   .cp-password-note .muted { color: #6b7280; font-size: 0.78rem; margin-top: 0.3rem; }
 `;
 
-new ApplyWidget();
+// Don't show the widget on our own web app — it has nothing to fill and
+// would just be visual clutter on the onboarding/tracker pages.
+if (!document.querySelector(".app-shell")) {
+  new ApplyWidget();
+}
