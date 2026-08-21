@@ -394,8 +394,17 @@ function guessCompanyFromHost(): string {
 // page-identity signals belong to greenhouse.io, not the real employer.
 function guessCompanyFromGreenhouseUrl(): string | null {
   if (!/(^|\.)greenhouse\.io$/.test(window.location.hostname)) return null;
-  const slug = window.location.pathname.split("/").filter(Boolean)[0];
+
+  // Two real URL shapes: /{company-slug}/jobs/{id} (direct board), and
+  // /embed/job_app?for={company-slug}&token={id} (the embed widget most
+  // companies actually use on their own careers page) — the "embed"
+  // path segment itself is never the company, only the first form's
+  // /company/jobs/ pattern is, so the query param has to come first.
+  const slug =
+    new URLSearchParams(window.location.search).get("for") ||
+    window.location.pathname.split("/").filter((s) => s && s !== "embed")[0];
   if (!slug) return null;
+
   return slug
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
