@@ -18,21 +18,15 @@ most notably a real incident where Kane accidentally submitted a live
 application despite an explicit instruction not to, caught by independently
 verifying rather than trusting its own self-report, and fixed.
 
-## Live
+## Load the extension
 
-- Web app: https://web-production-c0649.up.railway.app
-- Backend API: https://careerpilot-production-4b72.up.railway.app
-
-## Try it — Chrome extension
-
-The extension is pre-built and committed to the repo, so there's no install
-step beyond loading it into Chrome:
+Pre-built and committed to the repo — no install or build step needed:
 
 1. `git clone https://github.com/richierichpro/careerPilot.git`
 2. Open `chrome://extensions`, toggle **Developer mode** on (top right)
 3. Click **Load unpacked** → select the `extension/` folder
-4. Open the web app link above and upload a resume — Claude extracts your
-   Career Profile
+4. Upload a resume at the web app (opens from the popup's "Career Profile"
+   button) — Claude extracts your Career Profile
 5. Open any real job application page (field detection is generic —
    `label[for]`, wrapping `<label>`, `aria-label`, `aria-labelledby`, then
    `placeholder` — not tied to any one site's markup) and click the
