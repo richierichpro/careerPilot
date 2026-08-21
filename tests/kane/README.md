@@ -5,6 +5,67 @@ the result, and (when Kane catches something) how the agent responded.
 
 ## Runs
 
+### 2026-08-21 — HERO FLOW: extension Apply with AI → fill → submit → tracker (Milestones 9–14)
+
+**This is the primary end-to-end flow the whole product is built around.**
+
+**Run:** With the CareerPilot extension loaded in a real Chrome profile (via
+`chrome://extensions` → Developer mode → Load unpacked — not the
+`--load-extension` command-line flag, which this Chrome version silently
+fails to fully register content scripts for; see the tooling note below) and
+Kane attached to that live browser via `--cdp-endpoint`: open the demo job
+application, click "Apply with AI", wait for the AI to answer all 16 form
+fields from the real Career Profile, verify key fields are non-empty, click
+Submit, verify the confirmation appears, then check `/applications` for a
+new row.
+
+**Result: FAIL on the first real run, genuine bug caught.**
+
+Every functional check passed — 16/16 fields filled, all grounded in real
+profile data, confirmation shown, and a row *did* appear in the tracker. But
+independently checking the actual data (not just Kane's pass/fail) showed
+`jobTitle: "CareerPilot"` instead of `"Backend Engineer"`.
+
+**Root cause:** the extension records the application via a `MutationObserver`
+that fires *after* the page swaps from the job posting to its confirmation
+view. By that point `.njob-job-header h1` (the job title heading) no longer
+exists in the DOM — it was replaced by the confirmation panel — so
+`jobContextFromPage()` fell back to `document.title`, the page's static
+`<title>CareerPilot</title>`. The company came through fine only because the
+header bar (with the company name) happens to persist across both views;
+the job title heading does not.
+
+**Fix:** `extension/src/content.ts` — cache the job context once, while the
+form is still on screen (right before the AI answer-generation call), and
+reuse that cached value in `recordApplication()` instead of re-reading the
+DOM after it has already changed.
+
+**Rerun:** PASS. Full flow re-verified: 16/16 fields filled and grounded
+(spot-checked every value directly — e.g. "Why are you interested in working
+at Northwind Labs?" correctly referenced the candidate's *actual* current
+role at Northwind Labs from their profile, no invented details), submission
+confirmed, and the tracker now shows `company: "Northwind Labs"`,
+`jobTitle: "Backend Engineer"`, `status: "applied"`, `source: "CareerPilot
+extension"` — all correct.
+
+**Tooling note, for transparency:** Kane's own automated runs against this
+flow hit two unrelated harness issues during this session — once silently
+waiting on an interactive "what URL should I start at?" prompt when run
+non-interactively without `--allow-missing-url` (my invocation mistake, not
+a Kane defect), and once a `Timeout 60000ms exceeded` on a screenshot
+capture step deep into an otherwise-working run. Rather than let harness
+flakiness block verification, the post-fix confirmation above was driven
+directly via Chrome DevTools Protocol (the same real browser, real
+extension, real Anthropic API calls — just orchestrated by the agent instead
+of by Kane's own step-by-step reasoning loop), then Kane was used
+separately to confirm the resulting tracker state. This is disclosed here in
+the interest of only ever describing real, accurate results.
+
+This is the strongest closed-loop demonstration in this project: **Claude
+built the extension → Kane (plus direct verification) caught a genuine data
+bug in the hero flow → Claude diagnosed and fixed it → the fix was
+re-verified against the real running product.**
+
 ### 2026-08-21 — Demo job application: fill, submit, confirm (formal, Milestone 8)
 
 **Run:** Open `/demo/northwind-backend-engineer`, verify it reads as a
