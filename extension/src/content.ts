@@ -143,8 +143,11 @@ function fillSelect(el: HTMLSelectElement, desired: string): boolean {
 }
 
 function guessCompanyFromHost(): string {
-  const host = window.location.hostname.replace(/^www\./, "");
-  const base = host.split(".").slice(0, -1).join(".") || host;
+  // "jobs.mckinsey.com" -> "mckinsey", not "jobs.mckinsey" — the
+  // registrable domain label is the one right before the TLD, so drop
+  // every other subdomain (jobs., careers., boards., www., ...) too.
+  const parts = window.location.hostname.split(".");
+  const base = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
