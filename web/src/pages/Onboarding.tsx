@@ -1,43 +1,60 @@
 import { useCallback, useRef, useState } from "react";
-import type { ApiErrorResponse, ResumeUploadResponse } from "@careerpilot/shared";
+import type { ApiErrorResponse, CareerProfile, ResumeUploadResponse } from "@careerpilot/shared";
 import { API_BASE_URL } from "../lib/api";
+import ProfileView from "../components/ProfileView";
 
-type UploadState =
+type Stage =
   | { status: "idle" }
   | { status: "uploading"; filename: string }
-  | { status: "uploaded"; result: ResumeUploadResponse }
+  | { status: "parsing"; filename: string }
+  | { status: "parsed"; profile: CareerProfile }
   | { status: "error"; message: string };
 
 const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt"];
 
+async function readError(res: Response, fallback: string): Promise<string> {
+  const body = (await res.json().catch(() => null)) as ApiErrorResponse | null;
+  return body?.error ?? fallback;
+}
+
 export default function Onboarding() {
-  const [state, setState] = useState<UploadState>({ status: "idle" });
+  const [stage, setStage] = useState<Stage>({ status: "idle" });
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const uploadFile = useCallback(async (file: File) => {
-    setState({ status: "uploading", filename: file.name });
-
-    const formData = new FormData();
-    formData.append("resume", file);
+  const uploadAndParse = useCallback(async (file: File) => {
+    setStage({ status: "uploading", filename: file.name });
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/resume/upload`, {
+      const formData = new FormData();
+      formData.append("resume", file);
+
+      const uploadRes = await fetch(`${API_BASE_URL}/api/resume/upload`, {
         method: "POST",
         body: formData,
       });
-
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as ApiErrorResponse | null;
-        throw new Error(body?.error ?? `Upload failed (status ${res.status}).`);
+      if (!uploadRes.ok) {
+        throw new Error(await readError(uploadRes, `Upload failed (status ${uploadRes.status}).`));
       }
+      const upload = (await uploadRes.json()) as ResumeUploadResponse;
 
-      const result = (await res.json()) as ResumeUploadResponse;
-      setState({ status: "uploaded", result });
+      setStage({ status: "parsing", filename: file.name });
+
+      const parseRes = await fetch(`${API_BASE_URL}/api/profile/parse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeId: upload.resumeId }),
+      });
+      if (!parseRes.ok) {
+        throw new Error(await readError(parseRes, `Parsing failed (status ${parseRes.status}).`));
+      }
+      const profile = (await parseRes.json()) as CareerProfile;
+
+      setStage({ status: "parsed", profile });
     } catch (err) {
-      setState({
+      setStage({
         status: "error",
-        message: err instanceof Error ? err.message : "Upload failed.",
+        message: err instanceof Error ? err.message : "Something went wrong.",
       });
     }
   }, []);
@@ -46,9 +63,9 @@ export default function Onboarding() {
     (files: FileList | null) => {
       const file = files?.[0];
       if (!file) return;
-      void uploadFile(file);
+      void uploadAndParse(file);
     },
-    [uploadFile],
+    [uploadAndParse],
   );
 
   const handleDrop = useCallback(
@@ -60,20 +77,20 @@ export default function Onboarding() {
     [handleFiles],
   );
 
+  const busy = stage.status === "uploading" || stage.status === "parsing";
+
   return (
     <section>
       <h1>Career Profile</h1>
       <p className="muted">
-        Upload your resume to build a structured Career Profile. AI parsing
-        into editable sections is coming in the next milestone.
+        Upload your resume — AI reads it and builds a structured Career
+        Profile below. Editable sections are coming in the next milestone.
       </p>
 
-      {state.status !== "uploaded" && (
+      {stage.status !== "parsed" && (
         <div
-          className={`dropzone${isDragging ? " dragging" : ""}${
-            state.status === "uploading" ? " busy" : ""
-          }`}
-          onClick={() => state.status !== "uploading" && inputRef.current?.click()}
+          className={`dropzone${isDragging ? " dragging" : ""}${busy ? " busy" : ""}`}
+          onClick={() => !busy && inputRef.current?.click()}
           onDragOver={(e) => {
             e.preventDefault();
             setIsDragging(true);
@@ -88,9 +105,11 @@ export default function Onboarding() {
             hidden
             onChange={(e) => handleFiles(e.target.files)}
           />
-          {state.status === "uploading" ? (
-            <p>Uploading {state.filename}…</p>
-          ) : (
+          {stage.status === "uploading" && <p>Uploading {stage.filename}…</p>}
+          {stage.status === "parsing" && (
+            <p>Analyzing {stage.filename} with AI — building your Career Profile…</p>
+          )}
+          {(stage.status === "idle" || stage.status === "error") && (
             <>
               <p className="dropzone-title">Drop your resume here, or click to browse</p>
               <p className="muted small">PDF, DOC, DOCX, or TXT — up to 5MB</p>
@@ -99,26 +118,28 @@ export default function Onboarding() {
         </div>
       )}
 
-      {state.status === "error" && (
+      {stage.status === "error" && (
         <div className="callout error">
-          <strong>Upload failed.</strong> {state.message}
+          <strong>Something went wrong.</strong> {stage.message}
         </div>
       )}
 
-      {state.status === "uploaded" && (
-        <div className="callout success">
-          <strong>{state.result.filename}</strong> uploaded (
-          {(state.result.size / 1024).toFixed(0)} KB).
-          <div>
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => setState({ status: "idle" })}
-            >
-              Replace resume
-            </button>
+      {stage.status === "parsed" && (
+        <>
+          <div className="callout success">
+            Career Profile built from your resume.
+            <div>
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => setStage({ status: "idle" })}
+              >
+                Replace resume
+              </button>
+            </div>
           </div>
-        </div>
+          <ProfileView profile={stage.profile} />
+        </>
       )}
     </section>
   );

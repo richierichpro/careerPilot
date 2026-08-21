@@ -9,8 +9,40 @@ export type ApplicationStatus =
   | "offer"
   | "rejected";
 
+export interface EducationEntry {
+  institution: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  startDate?: string;
+  endDate?: string;
+  gpa?: string;
+}
+
+export interface ExperienceEntry {
+  company: string;
+  title: string;
+  startDate?: string;
+  endDate?: string;
+  location?: string;
+  highlights: string[];
+}
+
+export interface ProjectEntry {
+  name: string;
+  description: string;
+  technologies: string[];
+  url?: string;
+}
+
+export interface CertificationEntry {
+  name: string;
+  issuer?: string;
+  date?: string;
+}
+
 export interface CareerProfile {
   id: string;
+  resumeId: string;
   name?: string;
   email?: string;
   phone?: string;
@@ -18,11 +50,11 @@ export interface CareerProfile {
   linkedin?: string;
   github?: string;
   portfolio?: string;
-  education: unknown[];
-  experience: unknown[];
-  skills: unknown[];
-  projects: unknown[];
-  certifications: unknown[];
+  education: EducationEntry[];
+  experience: ExperienceEntry[];
+  skills: string[];
+  projects: ProjectEntry[];
+  certifications: CertificationEntry[];
   workAuthorization?: string;
   salaryExpectation?: string;
   createdAt: string;
@@ -55,4 +87,8 @@ export interface ResumeUploadResponse {
 
 export interface ApiErrorResponse {
   error: string;
+}
+
+export interface ProfileParseRequest {
+  resumeId: string;
 }
