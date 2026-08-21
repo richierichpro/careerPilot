@@ -92,3 +92,35 @@ export interface ApiErrorResponse {
 export interface ProfileParseRequest {
   resumeId: string;
 }
+
+export type DetectedFieldType = "text" | "email" | "tel" | "textarea" | "select";
+
+export interface DetectedField {
+  id: string;
+  label: string;
+  fieldType: DetectedFieldType;
+  options?: string[];
+}
+
+export interface JobContext {
+  url: string;
+  title: string;
+  company: string;
+  description?: string;
+}
+
+export interface AutofillRequest {
+  profileId: string;
+  jobContext: JobContext;
+  fields: DetectedField[];
+}
+
+export interface AutofillAnswer {
+  id: string;
+  value: string;
+  grounded: boolean;
+}
+
+export interface AutofillResponse {
+  answers: AutofillAnswer[];
+}

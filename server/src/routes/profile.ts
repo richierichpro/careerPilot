@@ -217,6 +217,35 @@ profileRouter.post("/parse", async (req, res) => {
   }
 });
 
+// Must be declared before GET /:id, or "latest" is swallowed as an :id.
+profileRouter.get("/latest", async (_req, res) => {
+  try {
+    const files = await fs.readdir(PROFILES_DIR);
+    const jsonFiles = files.filter((f) => f.endsWith(".json"));
+    if (jsonFiles.length === 0) {
+      const body: ApiErrorResponse = {
+        error: "No Career Profile found yet. Upload a resume on the CareerPilot onboarding page first.",
+      };
+      res.status(404).json(body);
+      return;
+    }
+
+    const withStats = await Promise.all(
+      jsonFiles.map(async (f) => {
+        const stat = await fs.stat(path.join(PROFILES_DIR, f));
+        return { file: f, mtime: stat.mtimeMs };
+      }),
+    );
+    withStats.sort((a, b) => b.mtime - a.mtime);
+
+    const raw = await fs.readFile(path.join(PROFILES_DIR, withStats[0].file), "utf-8");
+    res.json(JSON.parse(raw) as CareerProfile);
+  } catch {
+    const body: ApiErrorResponse = { error: "No Career Profile found yet." };
+    res.status(404).json(body);
+  }
+});
+
 profileRouter.get("/:id", async (req, res) => {
   try {
     const raw = await fs.readFile(path.join(PROFILES_DIR, `${req.params.id}.json`), "utf-8");

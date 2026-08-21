@@ -5,6 +5,7 @@ import type { HealthCheckResponse } from "@careerpilot/shared";
 import { resumeRouter } from "./routes/resume";
 import { profileRouter } from "./routes/profile";
 import { applicationsRouter } from "./routes/applications";
+import { autofillRouter } from "./routes/autofill";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
@@ -21,6 +22,7 @@ app.use(express.json());
 app.use("/api/resume", resumeRouter);
 app.use("/api/profile", profileRouter);
 app.use("/api/applications", applicationsRouter);
+app.use("/api/autofill", autofillRouter);
 
 app.get("/api/health", (_req, res) => {
   const body: HealthCheckResponse = {
