@@ -5,6 +5,61 @@ the result, and (when Kane catches something) how the agent responded.
 
 ## Runs
 
+### 2026-08-21 — Real bug: iframe-embedded ATS forms weren't detected at all
+
+**How it was found:** a real end-user test on an actual Stripe job posting
+(`stripe.com/careers/apply/...`) — clicking "Apply with AI" returned "No
+form fields found on this page," despite the page visibly showing a full
+application form (First Name, Last Name, Email, Country, Phone, Location,
+Resume upload).
+
+**Root cause:** confirmed directly by opening the exact page and querying
+the DOM — the top-level `stripe.com` document had **zero** form inputs. The
+real form is loaded in a cross-origin iframe from `job-boards.greenhouse.io`
+(Stripe uses Greenhouse's embedded application widget) — an extremely
+common pattern for companies integrating Greenhouse. The content script
+only ever saw the frame it was injected into (the top frame), so it never
+had a chance to find the real fields.
+
+**Fix:** `all_frames: true` in the manifest, so the same content script also
+runs inside matching iframes; gated widget-mounting on the frame actually
+containing fillable form controls, so the button doesn't appear in every
+tracking/ad/reCAPTCHA iframe on the page. No cross-frame messaging needed —
+each frame's widget instance is fully self-contained.
+
+**Direct verification (not Kane):** reloaded the extension, reopened the
+real Stripe page, confirmed the widget now mounts inside the Greenhouse
+iframe (not the top frame), clicked it, and confirmed 13 of 21 real fields
+filled correctly from the stored profile. Repeated successfully on a second,
+different Stripe/Greenhouse job posting to confirm it generalizes.
+
+**Kane verification, attempt 1 — FAILED, but caught something real and
+unrelated to our product:** asked Kane to click "the Apply with AI button."
+Kane instead clicked Greenhouse's own native "Autofill my application"
+button (visible in the same embedded form), which requires a Greenhouse
+account sign-in and is a completely different feature from ours — it
+opened a Greenhouse sign-in tab. This is a genuine finding: our button's
+purpose is similar enough to a real site feature that plain-language
+targeting is ambiguous. Independently confirmed our widget was present and
+correct in the iframe the whole time (`hostExists: true`) — this was a
+targeting mixup, not our extension failing to appear.
+
+**Kane verification, attempt 2 — reran with an unambiguous visual
+description** (rounded blue pill button, exact text, explicit "do NOT
+click Autofill my application"). Kane's own summary: it reached the goal —
+First Name and Email were confirmed non-empty and plausible after
+CareerPilot's fill — but the run still reported FAILED because the
+automation kept searching for further actions instead of recognizing the
+objective was already satisfied, and got flagged as stuck. Combined with
+the direct verification above (same iframe, same page, fields confirmed
+filled with real data on two separate job postings) and no indication
+either run ever reached a submit/confirmation page, this is treated as a
+verified pass on the actual product behavior with a Kane harness
+limitation (missing completion detection), not a product defect.
+
+**Regression-checked:** demo page and our own web app pages (onboarding,
+tracker) unaffected — widget still shows only where it should.
+
 ### 2026-08-21 — Kane-driven fill on a real external site (McKinsey careers)
 
 **Run:** Kane attached via `--cdp-endpoint` to a real Chrome profile with the
