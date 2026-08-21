@@ -118,8 +118,8 @@ profileRouter.post("/parse", async (req, res) => {
     }
 
     const response = await anthropic.messages.parse({
-      model: "claude-opus-5",
-      max_tokens: 16000,
+      model: "claude-sonnet-5",
+      max_tokens: 4096,
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [
         {

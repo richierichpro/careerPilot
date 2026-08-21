@@ -628,14 +628,21 @@ async function checkAndRecordPendingApplication(): Promise<void> {
   // be mid-render on this first check — its "Submitted" status may not be
   // in the DOM yet. Retry on DOM changes for a while instead of giving up
   // after one look, the same pattern watchForFillableForm already uses for
-  // slow-rendering application forms.
+  // slow-rendering application forms. Each retry is a real AI call, so a
+  // page that keeps mutating (ads, chat widgets, animations) must not turn
+  // into a burst of calls on every single mutation — a minimum gap between
+  // attempts keeps this to a handful of tries over the retry window, not
+  // one per DOM change.
   let checking = false;
+  let lastAttemptAt = 0;
+  const MIN_RETRY_GAP_MS = 4000;
   const observer = new MutationObserver(() => {
-    if (checking || resolved) {
+    if (checking || resolved || Date.now() - lastAttemptAt < MIN_RETRY_GAP_MS) {
       if (resolved) observer.disconnect();
       return;
     }
     checking = true;
+    lastAttemptAt = Date.now();
     void tryDetectAndRecord()
       .then((done) => {
         if (done) {

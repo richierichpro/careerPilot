@@ -121,8 +121,8 @@ autofillRouter.post("/generate", async (req, res) => {
     );
 
     const response = await anthropic.messages.parse({
-      model: "claude-opus-5",
-      max_tokens: 16000,
+      model: "claude-sonnet-5",
+      max_tokens: 8000,
       system: AUTOFILL_SYSTEM_PROMPT,
       messages: [
         {
@@ -190,7 +190,7 @@ autofillRouter.post("/detect-confirmation", async (req, res) => {
     );
 
     const response = await anthropic.messages.parse({
-      model: "claude-opus-5",
+      model: "claude-sonnet-5",
       max_tokens: 1024,
       system: CONFIRMATION_SYSTEM_PROMPT,
       messages: [
