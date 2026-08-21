@@ -542,20 +542,45 @@ async function checkAndRecordPendingApplication(): Promise<void> {
   };
   if (!jobContext) return; // nothing pending, or it already expired
 
-  const submitted = await detectConfirmationWithAI(jobContext);
-  if (!submitted) return; // AI decided this isn't the confirmation page — leave the flag for a later hop
+  const tryDetectAndRecord = async (): Promise<boolean> => {
+    const submitted = await detectConfirmationWithAI(jobContext);
+    if (!submitted) return false;
 
-  // Clear before recording — if the record call fails, better to lose
-  // one tracker entry than risk double-recording on a reload of this
-  // same confirmation page.
-  await chrome.runtime.sendMessage({ type: "CAREERPILOT_CLEAR_PENDING" });
-  const ok = await recordApplicationToServer(jobContext);
-  showToast(
-    ok
-      ? `✓ Application to ${jobContext.company} recorded in your CareerPilot tracker.`
-      : `Application to ${jobContext.company} submitted, but couldn't be recorded in CareerPilot.`,
-    ok ? "success" : "error",
-  );
+    // Clear before recording — if the record call fails, better to lose
+    // one tracker entry than risk double-recording on a reload of this
+    // same confirmation page.
+    await chrome.runtime.sendMessage({ type: "CAREERPILOT_CLEAR_PENDING" });
+    const ok = await recordApplicationToServer(jobContext);
+    showToast(
+      ok
+        ? `✓ Application to ${jobContext.company} recorded in your CareerPilot tracker.`
+        : `Application to ${jobContext.company} submitted, but couldn't be recorded in CareerPilot.`,
+      ok ? "success" : "error",
+    );
+    return true;
+  };
+
+  if (await tryDetectAndRecord()) return;
+
+  // A landing dashboard on a real ATS (Google Careers confirmed) can still
+  // be mid-render on this first check — its "Submitted" status may not be
+  // in the DOM yet. Retry on DOM changes for a while instead of giving up
+  // after one look, the same pattern watchForFillableForm already uses for
+  // slow-rendering application forms.
+  let checking = false;
+  const observer = new MutationObserver(() => {
+    if (checking) return;
+    checking = true;
+    void tryDetectAndRecord()
+      .then((done) => {
+        if (done) observer.disconnect();
+      })
+      .finally(() => {
+        checking = false;
+      });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 20000);
 }
 
 class ApplyWidget {

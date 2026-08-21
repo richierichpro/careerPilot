@@ -493,3 +493,43 @@ tightened prompt and still correctly returns `submitted: true` — the fix
 narrows the false-positive without reintroducing the original false-
 negative gap. The bad row was deleted from the tracker via `DELETE
 /api/applications/:id`.
+
+### 2026-08-21 — Real false negative: a genuine Google Careers submission wasn't auto-tracked
+
+**Found by:** the user, live — submitted a real application ("Senior
+Software Engineer, Vertex AI, Workbench - Warsaw") on Google Careers,
+in a separate Chrome profile the agent had no CDP access to, and
+reported nothing showed up in `/applications`.
+
+**Diagnosis without direct browser access:** asked the user for a
+screenshot of the actual dashboard page instead of guessing. It clearly
+showed "Applications / Submitted (1) / Senior Software Engineer, Vertex
+AI, Workbench - Warsaw / Updated 1 second ago / Submitted" — real,
+unambiguous evidence of a genuine submission. Reconstructed that exact
+text and posted it to `/api/autofill/detect-confirmation` with the real
+job context: it correctly returned `submitted: true`. This ruled out
+the prompt tightened in the entry above as the cause — the AI judgment
+itself was fine given the right input.
+
+**Root cause:** `checkAndRecordPendingApplication()` only ran once,
+synchronously, at `document_idle` — it read whatever `document.body.
+innerText` happened to be at that instant and never looked again. A
+modern client-rendered dashboard (Google's, in this case) can easily
+still be loading its "Submitted" status at that exact moment, so the
+one-shot check reads an empty/loading page and never gets a second
+chance. `watchForFillableForm()` already solved this exact class of
+problem for detecting a fillable form on slow-rendering SPAs (Oracle,
+confirmed earlier in this session) via a MutationObserver retry with a
+20s timeout — the confirmation check never got the equivalent
+treatment.
+
+**Fix:** gave `checkAndRecordPendingApplication()` the same retry
+pattern: try once immediately, and if not submitted, watch for DOM
+mutations and retry (debounced with a `checking` flag to avoid
+overlapping AI calls) for up to 20 seconds before giving up.
+
+**Verified:** the underlying AI call was confirmed correct via direct
+curl against the real captured page text (above); the retry logic
+itself mirrors the already-proven `watchForFillableForm` pattern rather
+than new, unverified logic. The real Google application was recorded
+manually in the meantime with an honest note explaining why.
