@@ -5,6 +5,38 @@ the result, and (when Kane catches something) how the agent responded.
 
 ## Runs
 
+### 2026-08-21 — Generalized field detection: verified on a real external site
+
+The extension originally only recognized fields via our own demo page's CSS
+classes. Rewrote `extractFields()`/`jobContextFromPage()` to use standard,
+site-agnostic signals instead — `label[for]`, a wrapping `<label>`,
+`aria-label`, `aria-labelledby`, then `placeholder` as a last resort — and
+broadened `manifest.json` to run on any site, not just localhost.
+
+**Manual verification (direct CDP, not headless Kane — real live external
+site, not something to script into a repeatable automated suite):** loaded
+the extension in a real Chrome profile, opened a real company's live
+careers/registration page, clicked Apply with AI. Result: fields correctly
+detected and filled from the actual stored Career Profile — a completely
+different, real-world resume (a warehouse-logistics background, nothing
+like the engineering-focused test fixture) — with one field (a "Prefix"
+title dropdown) correctly left blank and flagged for review since that
+information isn't in the resume. No values were invented for it.
+
+**A real bug surfaced during this**, caught the same way: the widget hung
+indefinitely on "Loading your Career Profile…" and never errored. Root
+cause — content script `fetch()` calls run in the *page's* security
+context, and a plain HTTP request from a content script on an `https://`
+page is blocked as mixed content (silently, with the promise never even
+rejecting — not a normal fetch failure). Fixed by proxying all backend
+calls through the background service worker (`chrome.runtime.sendMessage`
+→ background does the actual `fetch`, which isn't subject to the page's
+mixed-content policy) instead of fetching directly from the content script.
+
+**Regression-checked** against the demo page afterward — field count and
+grounding behavior unchanged, confirming the generic rewrite didn't
+regress the original, Kane-verified flow.
+
 ### 2026-08-21 — HERO FLOW: extension Apply with AI → fill → submit → tracker (Milestones 9–14)
 
 **This is the primary end-to-end flow the whole product is built around.**
