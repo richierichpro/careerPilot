@@ -3,11 +3,39 @@
 This file documents real Kane CLI runs against CareerPilot — what was tested,
 the result, and (when Kane catches something) how the agent responded.
 
-No verification flows exist yet. They will be added once there is a real
-end-to-end path to exercise (starting around the demo job application and
-extension autofill milestones).
-
 ## Runs
+
+### 2026-08-21 — Resume upload → AI Career Profile extraction (formal, Milestone 4)
+
+**Run:** Open `/onboarding`, upload a real `.txt` resume through the dropzone's
+file input, wait for upload + AI analysis to finish, then verify the rendered
+Career Profile: name, an Experience entry correctly split into company "Acme
+Corp" / title "Software Engineering Intern" (from the source text "Software
+Engineering Intern, Acme Corp"), "Python" listed under Skills, and the stored
+work authorization / salary expectation text. Verify zero console errors.
+
+**Result:** PASS
+
+**What this verifies:** The core AI pipeline the whole product depends on —
+real multipart upload to the server, a live Anthropic API call
+(`claude-opus-5` via `messages.parse` with a Zod structured-output schema),
+and semantic normalization of resume text into structured fields (not literal
+keyword copying). This is a major end-to-end behavior, not a trivial check.
+Session: `ccd615aa-736e-4584-b80c-26efb6d5aae8`.
+
+**Note — a real bug surfaced before this run, caught by direct API testing
+(not Kane):** the first version of the extraction schema marked every
+optional field `.nullable()`, hitting Anthropic's 16-field cap on
+nullable/union-typed schema properties (mine had 20) — the API returned a 400
+`invalid_request_error`. Found via a direct `curl` test against
+`/api/profile/parse` with a real uploaded resume, before ever involving Kane.
+Fixed by making every field a required string/array with an empty-string/
+empty-array sentinel for "not stated", converted back to `undefined` after
+parsing — which also sidesteps the field cap entirely. Re-tested via curl,
+confirmed correct output, then the Kane run above verified it through the
+actual UI.
+
+### 2026-08-21 — Onboarding page sanity check (ad hoc, during Milestone 2)
 
 ### 2026-08-21 — Onboarding page sanity check (ad hoc, during Milestone 2)
 
