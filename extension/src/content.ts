@@ -85,6 +85,27 @@ function isVisible(el: HTMLElement): boolean {
   return !!el.offsetParent || el.getClientRects().length > 0;
 }
 
+const HONEYPOT_KEYWORDS = /honey ?pot|hp[-_]?field|bot[-_]?trap|do[-_]?not[-_]?fill/i;
+
+// Anti-bot honeypot fields (confirmed real example: a field literally
+// named "honey-pot" on an Oracle Recruiting Cloud application) are
+// deliberately left in normal layout flow — hidden from human eyes via
+// CSS (near-zero size, transparent) rather than display:none — so a
+// naive automated fill that only checks offsetParent/getClientRects()
+// still sees them as "visible" and fills them, which is exactly the
+// signal these traps are designed to catch. A filled honeypot commonly
+// gets a submission silently rejected or flagged as bot activity.
+function isLikelyHoneypot(el: HTMLElement): boolean {
+  const identity = `${el.id} ${el.getAttribute("name") ?? ""} ${el.className}`;
+  if (HONEYPOT_KEYWORDS.test(identity)) return true;
+
+  const rect = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const tinyOrTransparent =
+    (rect.width <= 2 && rect.height <= 2) || parseFloat(cs.opacity) === 0 || cs.visibility === "hidden";
+  return tinyOrTransparent && rect.width + rect.height > 0; // still "visible" per isVisible(), just deliberately disguised
+}
+
 // Real ATS platforms (Greenhouse, Lever, Workday, a company's own custom
 // form, ...) all mark up labels differently. Try the standard/accessible
 // approaches first, in priority order, before falling back to weaker
@@ -126,6 +147,7 @@ function extractFields(): ExtractedField[] {
   ).filter((el) => {
     if (el instanceof HTMLInputElement && SKIPPED_INPUT_TYPES.has(el.type)) return false;
     if (!isVisible(el)) return false;
+    if (isLikelyHoneypot(el)) return false;
     if ("value" in el && el.value.trim().length > 0) return false; // don't clobber prefilled data
     return true;
   });
@@ -177,7 +199,7 @@ function extractCheckboxGroups(startIndex: number): ExtractedField[] {
 
   const groupInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[type="checkbox"], input[type="radio"]'),
-  ).filter(isVisible);
+  ).filter((el) => isVisible(el) && !isLikelyHoneypot(el));
 
   groupInputs.forEach((input, i) => {
     const fieldset = input.closest("fieldset");
@@ -189,7 +211,7 @@ function extractCheckboxGroups(startIndex: number): ExtractedField[] {
 
     const optionInputs = Array.from(
       fieldset.querySelectorAll<HTMLInputElement>('input[type="checkbox"], input[type="radio"]'),
-    ).filter(isVisible);
+    ).filter((el) => isVisible(el) && !isLikelyHoneypot(el));
 
     if (optionInputs.some((o) => o.checked)) return; // already answered — don't touch it
 
@@ -771,9 +793,30 @@ function frameHasFillableForm(): boolean {
 // extraction, autofill, and submission-detection all happen local to
 // whichever frame actually holds the fields, no cross-frame messaging
 // needed.
-if (!document.querySelector(".app-shell") && frameHasFillableForm()) {
-  new ApplyWidget();
+// Heavy SPA-based ATS platforms (Oracle Recruiting Cloud is a confirmed
+// real example) render their actual form fields well after this script's
+// one-shot document_idle injection point — a single frameHasFillableForm()
+// check right away can run before the form exists at all. Retry on DOM
+// mutations for a while instead of giving up after one look.
+function watchForFillableForm() {
+  if (document.querySelector(".app-shell")) return;
+
+  if (frameHasFillableForm()) {
+    new ApplyWidget();
+    return;
+  }
+
+  const observer = new MutationObserver(() => {
+    if (frameHasFillableForm()) {
+      observer.disconnect();
+      new ApplyWidget();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 20000); // give up rather than watch forever
 }
+
+watchForFillableForm();
 
 // Independent of whether the widget mounts on THIS page — a confirmation
 // page reached via a real navigation typically has no form fields at all,
