@@ -55,21 +55,6 @@ Pre-built and committed to the repo — no install or build step needed:
 /tests/kane Kane CLI verification flows, fixtures, and the run log
 ```
 
-## Running it locally (optional — the extension works against the live backend above without this)
-
-Requires Node.js 22+.
-
-```bash
-npm install
-cp server/.env.example server/.env   # then fill in ANTHROPIC_API_KEY
-npm run dev:server   # API on http://localhost:8787
-npm run dev:web      # web app — watch the terminal for the port
-```
-
-To point a locally-built extension at your local server instead of the
-deployed one, edit `SERVER_URL` in `extension/src/background.ts` and
-`extension/src/popup.ts`, then `npm run build --workspace=extension`.
-
 ## Status
 
 All core milestones complete and deployed: resume upload, Anthropic-powered
