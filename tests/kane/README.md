@@ -5,6 +5,38 @@ the result, and (when Kane catches something) how the agent responded.
 
 ## Runs
 
+### 2026-08-21 — Kane-driven fill on a real external site (McKinsey careers)
+
+**Run:** Kane attached via `--cdp-endpoint` to a real Chrome profile with the
+extension loaded, driving a live `jobs.mckinsey.com` account-registration
+page (not our demo page). Objective explicitly forbade clicking
+Register/Submit/Create Account — verify-only, never actually apply.
+Click "Apply with AI," wait for fill, verify Preferred First Name and Email
+are non-empty and look like real data.
+
+**Result:** Kane reported FAIL — its own diagnosis: it checked the Email
+field's value while looking at the wrong element reference / before the
+visible section had settled, not a product failure.
+
+**Independently verified directly:** the tab URL never left `/Register`
+(no `/Success` navigation — nothing was submitted), and every visible text
+field (Preferred First Name, Preferred Last Name, Email) held the correct
+value from the real stored Career Profile. The generic field-detection and
+fill mechanism worked correctly on a real, unfamiliar site; only Kane's own
+assertion had a targeting issue. Logged as a verified false positive, same
+as the earlier tracker false positive — no code change was needed for the
+fill logic itself.
+
+**Also verified separately (safe simulation, not a real submission):** the
+generic submission-detection heuristic (phrase-matching for confirmation
+text, since every ATS confirms differently) was tested by injecting
+confirmation-like text into the DOM directly — no real form was ever
+submitted — which correctly triggered `recordApplication()` and created a
+tracker row. That test caught a real bug: the company-name fallback
+(`guessCompanyFromHost()`) mishandled subdomains, e.g. producing
+"Jobs.mckinsey" instead of "Mckinsey" for `jobs.mckinsey.com`. Fixed to use
+the second-to-last hostname segment instead of everything before the TLD.
+
 ### 2026-08-21 — Generalized field detection: verified on a real external site
 
 The extension originally only recognized fields via our own demo page's CSS
