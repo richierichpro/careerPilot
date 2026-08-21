@@ -490,7 +490,7 @@ async function detectConfirmationWithAI(jobContext: JobContext): Promise<boolean
       body: JSON.stringify({
         jobContext,
         currentUrl: window.location.href,
-        pageText: document.body.innerText.slice(0, 4000),
+        pageText: document.body.innerText.slice(0, 2000),
       }),
     });
     if (!res.ok) return false;

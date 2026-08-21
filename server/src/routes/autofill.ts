@@ -184,13 +184,13 @@ autofillRouter.post("/detect-confirmation", async (req, res) => {
 
   try {
     const userContent = JSON.stringify(
-      { jobContext, currentUrl, pageText: pageText.slice(0, 4000) },
+      { jobContext, currentUrl, pageText: pageText.slice(0, 2000) },
       null,
       2,
     );
 
     const response = await anthropic.messages.parse({
-      model: "claude-sonnet-5",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       system: CONFIRMATION_SYSTEM_PROMPT,
       messages: [
