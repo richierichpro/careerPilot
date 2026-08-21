@@ -448,11 +448,34 @@ type JobContext = ReturnType<typeof jobContextFromPage>;
 // browser session (but not permanently — cleared on browser restart),
 // which is exactly the right lifetime for "remember this across the next
 // page load, but don't leak it into some unrelated future session."
-const CONFIRMATION_PHRASES =
-  /application (has been |was )?(submitted|received|complete)|thank you for (applying|your application|your interest)|we('| ha)ve received your application|(successfully|thanks for) appl(y|ying)|you('| ha)ve (successfully )?applied|application (complete|successful)/i;
-
 async function savePendingApplication(jobContext: JobContext): Promise<void> {
   await chrome.runtime.sendMessage({ type: "CAREERPILOT_SAVE_PENDING", jobContext });
+}
+
+// Regex-based "does this look like a confirmation" heuristics kept
+// breaking on real sites — every ATS platform lands somewhere different
+// after a real submit (a dedicated thank-you page, a candidate dashboard
+// buried under an unrelated URL, different wording every time), and each
+// fix was another narrow pattern added after the fact. Asking Claude to
+// actually read the page and decide generalizes far better than another
+// regex would.
+async function detectConfirmationWithAI(jobContext: JobContext): Promise<boolean> {
+  try {
+    const res = await bgFetch("/api/autofill/detect-confirmation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobContext,
+        currentUrl: window.location.href,
+        pageText: document.body.innerText.slice(0, 4000),
+      }),
+    });
+    if (!res.ok) return false;
+    const { submitted } = res.body as { submitted: boolean; reasoning: string };
+    return submitted;
+  } catch {
+    return false;
+  }
 }
 
 async function recordApplicationToServer(ctx: JobContext): Promise<boolean> {
@@ -478,27 +501,29 @@ async function recordApplicationToServer(ctx: JobContext): Promise<boolean> {
 // Apply with AI widget mounts here — a dedicated "thank you" confirmation
 // page typically has no form fields of its own, so the widget wouldn't
 // appear there at all, but that's exactly the page this needs to detect.
+// Regex-based "does this look like a confirmation" heuristics kept
+// breaking on real sites — every ATS platform lands somewhere different
+// after a real submit (a dedicated thank-you page, a candidate dashboard
+// buried under an unrelated URL, different wording every time), and each
+// fix was another narrow pattern added after the fact. Asking Claude to
+// actually read the page and decide generalizes far better than another
+// regex would. Gated the same way the old heuristic was — only runs at
+// all when a recent (< 30 min) "Apply with AI" click left a pending
+// flag — so this never fires on an unprompted page visit.
 async function checkAndRecordPendingApplication(): Promise<void> {
   const { jobContext } = (await chrome.runtime.sendMessage({ type: "CAREERPILOT_PEEK_PENDING" })) as {
     jobContext: JobContext | null;
   };
   if (!jobContext) return; // nothing pending, or it already expired
 
-  const urlLooksLikeConfirmation = /confirmation|thank[-_]?you|application[-_]?success|submitted/i.test(
-    window.location.pathname,
-  );
-  const textLooksLikeConfirmation = CONFIRMATION_PHRASES.test(document.body.innerText.slice(0, 4000));
+  const submitted = await detectConfirmationWithAI(jobContext);
+  if (!submitted) return; // AI decided this isn't the confirmation page — leave the flag for a later hop
 
-  if (urlLooksLikeConfirmation || textLooksLikeConfirmation) {
-    // Clear before recording — if the record call fails, better to lose
-    // one tracker entry than risk double-recording on a reload of this
-    // same confirmation page.
-    await chrome.runtime.sendMessage({ type: "CAREERPILOT_CLEAR_PENDING" });
-    await recordApplicationToServer(jobContext);
-  }
-  // If this page isn't a confirmation page, leave the flag in place —
-  // this might just be an intermediate redirect/loading hop before the
-  // real confirmation page loads.
+  // Clear before recording — if the record call fails, better to lose
+  // one tracker entry than risk double-recording on a reload of this
+  // same confirmation page.
+  await chrome.runtime.sendMessage({ type: "CAREERPILOT_CLEAR_PENDING" });
+  await recordApplicationToServer(jobContext);
 }
 
 class ApplyWidget {
@@ -714,19 +739,29 @@ class ApplyWidget {
   // it's a heuristic, not a guarantee, which is why the widget always
   // shows what it did rather than silently trusting this.
   private watchForSubmission() {
-    const confirmationPhrases =
-      /application (has been )?(submitted|received)|thank you for (applying|your application)|we('| ha)ve received your application/i;
+    let checking = false;
 
     const observer = new MutationObserver(() => {
+      // Exact match for our own demo page — instant, no need for an AI
+      // round-trip on a page we already know precisely.
       if (document.querySelector(".njob-confirmation")) {
         observer.disconnect();
         void this.recordApplication();
         return;
       }
-      if (this.lastJobContext && confirmationPhrases.test(document.body.innerText.slice(0, 4000))) {
-        observer.disconnect();
-        void this.recordApplication();
-      }
+
+      if (!this.lastJobContext || checking) return;
+      checking = true;
+      void detectConfirmationWithAI(this.lastJobContext)
+        .then((submitted) => {
+          if (submitted) {
+            observer.disconnect();
+            void this.recordApplication();
+          }
+        })
+        .finally(() => {
+          checking = false;
+        });
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }

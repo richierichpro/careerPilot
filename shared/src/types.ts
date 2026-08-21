@@ -124,3 +124,14 @@ export interface AutofillAnswer {
 export interface AutofillResponse {
   answers: AutofillAnswer[];
 }
+
+export interface DetectConfirmationRequest {
+  jobContext: JobContext;
+  currentUrl: string;
+  pageText: string;
+}
+
+export interface DetectConfirmationResponse {
+  submitted: boolean;
+  reasoning: string;
+}
