@@ -5,6 +5,29 @@ the result, and (when Kane catches something) how the agent responded.
 
 ## Runs
 
+### 2026-08-21 — Applications tracker renders real backend data (formal, Milestone 7)
+
+**Run:** Seed two applications via `POST /api/applications` (Northwind Labs /
+Backend Engineer / interview / with notes, and Acme Corp / Backend Engineer /
+interview), open `/applications`, verify both rows render with the correct
+company, job title, status badge, and notes; verify zero console errors.
+
+**Result:** First attempt FAILED on one checkpoint ("a second row for 'Acme
+Corp' is shown"); Kane's own summary suspected its row-matching logic, not
+the app. Rather than accept that self-diagnosis at face value either, the
+agent re-ran a second, unambiguous Kane query asking it to directly read
+`tbody tr` count and every company name via `querySelectorAll` — result: 2
+rows, `["Northwind Labs", "Acme Corp"]`, exactly correct. The two seeded rows
+share the same job title ("Backend Engineer"), which is the likely cause of
+the first run's row-identity confusion in its accessibility-role locator.
+
+**Conclusion:** Verified false positive, not a real defect — no code change
+made. What this run actually verifies: the tracker table correctly renders
+real rows from the SQLite-backed `/api/applications` endpoint (company, role,
+status badge, notes), which is the tracker's core job. Sessions:
+`626121f0-c3df-4293-a228-0c445cd72d17` (first, failed) →
+`99612a98-3f0e-4216-8f95-92bf012e787c` (direct DOM check, passed).
+
 ### 2026-08-21 — Resume upload → AI Career Profile extraction (formal, Milestone 4)
 
 **Run:** Open `/onboarding`, upload a real `.txt` resume through the dropzone's
