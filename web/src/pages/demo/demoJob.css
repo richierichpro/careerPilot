@@ -1,0 +1,158 @@
+.njob-page {
+  min-height: 100vh;
+  background: #f7f7f5;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #1f2318;
+}
+
+.njob-header {
+  background: #1f2318;
+  padding: 1.1rem 2rem;
+}
+
+.njob-header-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.njob-logo {
+  color: #f7f7f5;
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+}
+
+.njob-header-sub {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.njob-content {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 4rem;
+}
+
+.njob-job-header h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.8rem;
+}
+
+.njob-meta {
+  color: #556052;
+  margin: 0 0 1.1rem;
+  font-size: 0.95rem;
+}
+
+.njob-description {
+  line-height: 1.6;
+  font-size: 0.98rem;
+  margin: 0 0 2.5rem;
+}
+
+.njob-form fieldset {
+  border: none;
+  border-top: 1px solid #d8d8d2;
+  padding: 1.75rem 0;
+  margin: 0;
+}
+
+.njob-form fieldset:first-of-type {
+  border-top: 1px solid #d8d8d2;
+}
+
+.njob-form legend {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #556052;
+  padding: 0 0 1rem;
+}
+
+.njob-field {
+  display: block;
+  margin-bottom: 1.1rem;
+}
+
+.njob-field:last-child {
+  margin-bottom: 0;
+}
+
+.njob-label {
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.88rem;
+  margin-bottom: 0.35rem;
+}
+
+.njob-required {
+  color: #a44;
+}
+
+.njob-field input,
+.njob-field select,
+.njob-field textarea {
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.92rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #c7c7bf;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f2318;
+}
+
+.njob-field textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.njob-field input:focus,
+.njob-field select:focus,
+.njob-field textarea:focus {
+  outline: 2px solid #556052;
+  outline-offset: 1px;
+}
+
+.njob-error {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #a44;
+  font-size: 0.88rem;
+  margin: 1.5rem 0 0;
+}
+
+.njob-submit {
+  margin-top: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #1f2318;
+  color: #f7f7f5;
+  border: none;
+  padding: 0.75rem 1.6rem;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.njob-submit:hover {
+  background: #343a29;
+}
+
+.njob-confirmation {
+  padding: 3rem 0;
+}
+
+.njob-confirmation h1 {
+  font-size: 1.6rem;
+  margin: 0 0 1rem;
+}
+
+.njob-confirmation p {
+  line-height: 1.6;
+  font-size: 1rem;
+}
