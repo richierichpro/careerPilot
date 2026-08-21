@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import type { ApiErrorResponse, Application, ApplicationStatus } from "@careerpilot/shared";
-import { db } from "../lib/db";
+import {
+  deleteApplication,
+  getApplication,
+  insertApplication,
+  listApplications,
+  updateApplication,
+} from "../lib/applicationsStore";
 
 const VALID_STATUSES: ApplicationStatus[] = [
   "saved",
@@ -12,37 +18,10 @@ const VALID_STATUSES: ApplicationStatus[] = [
   "rejected",
 ];
 
-interface ApplicationRow {
-  id: string;
-  company: string;
-  jobTitle: string;
-  jobUrl: string;
-  dateApplied: string;
-  status: ApplicationStatus;
-  source: string | null;
-  notes: string | null;
-}
-
-function rowToApplication(row: ApplicationRow): Application {
-  return {
-    id: row.id,
-    company: row.company,
-    jobTitle: row.jobTitle,
-    jobUrl: row.jobUrl,
-    dateApplied: row.dateApplied,
-    status: row.status,
-    source: row.source ?? undefined,
-    notes: row.notes ?? undefined,
-  };
-}
-
 export const applicationsRouter = Router();
 
 applicationsRouter.get("/", (_req, res) => {
-  const rows = db
-    .prepare("SELECT * FROM applications ORDER BY dateApplied DESC")
-    .all() as ApplicationRow[];
-  res.json(rows.map(rowToApplication));
+  res.json(listApplications());
 });
 
 applicationsRouter.post("/", (req, res) => {
@@ -70,24 +49,13 @@ applicationsRouter.post("/", (req, res) => {
     notes: body.notes,
   };
 
-  db.prepare(
-    `INSERT INTO applications (id, company, jobTitle, jobUrl, dateApplied, status, source, notes)
-     VALUES (@id, @company, @jobTitle, @jobUrl, @dateApplied, @status, @source, @notes)`,
-  ).run({
-    ...application,
-    source: application.source ?? null,
-    notes: application.notes ?? null,
-  });
-
+  insertApplication(application);
   res.status(201).json(application);
 });
 
 applicationsRouter.patch("/:id", (req, res) => {
-  const existingRow = db
-    .prepare("SELECT * FROM applications WHERE id = ?")
-    .get(req.params.id) as ApplicationRow | undefined;
-
-  if (!existingRow) {
+  const existing = getApplication(req.params.id);
+  if (!existing) {
     const err: ApiErrorResponse = { error: "Application not found." };
     res.status(404).json(err);
     return;
@@ -100,25 +68,14 @@ applicationsRouter.patch("/:id", (req, res) => {
     return;
   }
 
-  const updated: Application = { ...rowToApplication(existingRow), ...body, id: existingRow.id };
-
-  db.prepare(
-    `UPDATE applications
-     SET company=@company, jobTitle=@jobTitle, jobUrl=@jobUrl, dateApplied=@dateApplied,
-         status=@status, source=@source, notes=@notes
-     WHERE id=@id`,
-  ).run({
-    ...updated,
-    source: updated.source ?? null,
-    notes: updated.notes ?? null,
-  });
-
+  const updated: Application = { ...existing, ...body, id: existing.id };
+  updateApplication(existing.id, updated);
   res.json(updated);
 });
 
 applicationsRouter.delete("/:id", (req, res) => {
-  const result = db.prepare("DELETE FROM applications WHERE id = ?").run(req.params.id);
-  if (result.changes === 0) {
+  const ok = deleteApplication(req.params.id);
+  if (!ok) {
     const err: ApiErrorResponse = { error: "Application not found." };
     res.status(404).json(err);
     return;
