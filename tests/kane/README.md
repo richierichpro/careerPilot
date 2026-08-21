@@ -448,3 +448,48 @@ unexpected state. Further Kane runs against real in-progress application
 forms should be scoped even more narrowly, or avoided in favor of
 independent read-only verification (as done for the two confirmation-
 detection cases above) once a form is already mid-submission risk.
+
+### 2026-08-21 — Real false positive: AI confirmation detection misread an identity interstitial as a submission
+
+**Found by:** the user, live — noticed a new row in `/applications` with
+jobTitle "Are You Still With Us?" that they never manually added, and
+asked how it got there. Not a Kane run; this was the auto-tracking
+pipeline firing for real, on the user's own real Uber browsing, shortly
+after the previous incident's fix was deployed — proof the pending-flag
+save itself now works on a fresh page, but exposing a second, different
+defect in the judgment layer.
+
+**What happened:** the user opened a different real Uber job (153222) in
+the same Chrome session and used the extension normally. Oracle
+Recruiting Cloud's flow, right after just entering an email address —
+before any application form is even reached — shows an "Are You Still
+With Us?" interstitial when it recognizes an existing candidate account,
+asking whether to continue with that profile. `detectConfirmationWithAI`
+read this page and returned `submitted: true`, and the extension recorded
+a fake "applied" row for a job that was never actually submitted.
+
+**Root cause:** the confirmation prompt only asked the model to rule out
+a login screen or an in-progress form — it had no explicit instruction
+covering an identity/account-linking interstitial, which reads
+plausibly "application-related" (mentions accounts, existing profiles)
+without being a submission at all.
+
+**Fix:** tightened `CONFIRMATION_SYSTEM_PROMPT` in
+`server/src/routes/autofill.ts` to (1) require concrete evidence — a
+status label, an "applied on" date, or a matching requisition ID, not
+just the job title appearing somewhere — and (2) explicitly name
+identity/re-authentication/"welcome back" interstitials as something
+that must never count as a submission, since they occur early in a flow
+rather than after it. Also added an explicit "when unsure, prefer
+submitted=false" tie-breaker, since a missed confirmation is far
+cheaper than a fabricated tracked application.
+
+**Verified directly via curl against `/api/autofill/detect-confirmation`**
+(not through Kane): a reconstructed version of the same interstitial now
+returns `submitted: false` with reasoning correctly naming it as an
+early-flow identity check; the original genuine positive case (the real
+Uber `my-profile` page from the entry above) was re-run against the same
+tightened prompt and still correctly returns `submitted: true` — the fix
+narrows the false-positive without reintroducing the original false-
+negative gap. The bad row was deleted from the tracker via `DELETE
+/api/applications/:id`.
