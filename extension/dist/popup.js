@@ -8,4 +8,26 @@
   document.getElementById("open-tracker")?.addEventListener("click", () => {
     chrome.tabs.create({ url: `${WEB_URL}/applications` });
   });
+  async function initApplyButton() {
+    const applyRow = document.getElementById("apply-row");
+    const noFormHint = document.getElementById("no-form-hint");
+    const applyBtn = document.getElementById("apply-with-ai");
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+    const { available } = await chrome.runtime.sendMessage({
+      type: "CAREERPILOT_QUERY_FORM_STATE",
+      tabId: tab.id
+    });
+    if (!available) return;
+    applyRow?.classList.add("visible");
+    noFormHint?.remove();
+    applyBtn?.addEventListener("click", () => {
+      if (!applyBtn || !tab.id) return;
+      applyBtn.disabled = true;
+      applyBtn.textContent = "Filling\u2026";
+      void chrome.runtime.sendMessage({ type: "CAREERPILOT_TRIGGER_FILL", tabId: tab.id });
+      window.close();
+    });
+  }
+  void initApplyButton();
 })();

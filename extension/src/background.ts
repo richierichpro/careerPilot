@@ -29,17 +29,48 @@ interface ClearPendingRequest {
   type: "CAREERPILOT_CLEAR_PENDING";
 }
 
+interface FormAvailableRequest {
+  type: "CAREERPILOT_FORM_AVAILABLE";
+}
+
+interface QueryFormStateRequest {
+  type: "CAREERPILOT_QUERY_FORM_STATE";
+  tabId: number;
+}
+
+interface TriggerFillRequest {
+  type: "CAREERPILOT_TRIGGER_FILL";
+  tabId: number;
+}
+
 type ExtensionMessage =
   | BackendFetchRequest
   | SavePendingRequest
   | PeekPendingRequest
-  | ClearPendingRequest;
+  | ClearPendingRequest
+  | FormAvailableRequest
+  | QueryFormStateRequest
+  | TriggerFillRequest;
 
 const SERVER_URL = "https://careerpilot-production-4b72.up.railway.app";
 const PENDING_KEY = "careerpilot_pending_application";
 const PENDING_MAX_AGE_MS = 30 * 60 * 1000;
 
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+// The Apply with AI trigger lives in the popup now, not on the page, so
+// the popup needs to know which frame (if any) of the active tab actually
+// found a fillable form — content scripts report in here as soon as they
+// find one (all_frames means many irrelevant frames inject too: ads,
+// trackers, recaptcha — only ones that actually detect a real form ever
+// send this). Cleared on navigation so a stale form from the PREVIOUS page
+// at this tab id doesn't linger.
+const formFrameByTab = new Map<number, number>();
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "loading") formFrameByTab.delete(tabId);
+});
+chrome.tabs.onRemoved.addListener((tabId) => formFrameByTab.delete(tabId));
+
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
   if (message?.type === "CAREERPILOT_FETCH") {
     (async () => {
       try {
@@ -95,6 +126,26 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
   if (message?.type === "CAREERPILOT_CLEAR_PENDING") {
     void chrome.storage.session.remove(PENDING_KEY).then(() => sendResponse({ ok: true }));
     return true;
+  }
+
+  if (message?.type === "CAREERPILOT_FORM_AVAILABLE") {
+    if (sender.tab?.id !== undefined && sender.frameId !== undefined) {
+      formFrameByTab.set(sender.tab.id, sender.frameId);
+    }
+    return undefined; // fire-and-forget, no response needed
+  }
+
+  if (message?.type === "CAREERPILOT_QUERY_FORM_STATE") {
+    sendResponse({ available: formFrameByTab.has(message.tabId) });
+    return undefined;
+  }
+
+  if (message?.type === "CAREERPILOT_TRIGGER_FILL") {
+    const frameId = formFrameByTab.get(message.tabId);
+    if (frameId !== undefined) {
+      void chrome.tabs.sendMessage(message.tabId, { type: "CAREERPILOT_RUN_FILL" }, { frameId });
+    }
+    return undefined;
   }
 
   return undefined;

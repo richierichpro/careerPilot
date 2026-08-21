@@ -4,7 +4,12 @@
   var SERVER_URL = "https://careerpilot-production-4b72.up.railway.app";
   var PENDING_KEY = "careerpilot_pending_application";
   var PENDING_MAX_AGE_MS = 30 * 60 * 1e3;
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  var formFrameByTab = /* @__PURE__ */ new Map();
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === "loading") formFrameByTab.delete(tabId);
+  });
+  chrome.tabs.onRemoved.addListener((tabId) => formFrameByTab.delete(tabId));
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "CAREERPILOT_FETCH") {
       (async () => {
         try {
@@ -43,6 +48,23 @@
     if (message?.type === "CAREERPILOT_CLEAR_PENDING") {
       void chrome.storage.session.remove(PENDING_KEY).then(() => sendResponse({ ok: true }));
       return true;
+    }
+    if (message?.type === "CAREERPILOT_FORM_AVAILABLE") {
+      if (sender.tab?.id !== void 0 && sender.frameId !== void 0) {
+        formFrameByTab.set(sender.tab.id, sender.frameId);
+      }
+      return void 0;
+    }
+    if (message?.type === "CAREERPILOT_QUERY_FORM_STATE") {
+      sendResponse({ available: formFrameByTab.has(message.tabId) });
+      return void 0;
+    }
+    if (message?.type === "CAREERPILOT_TRIGGER_FILL") {
+      const frameId = formFrameByTab.get(message.tabId);
+      if (frameId !== void 0) {
+        void chrome.tabs.sendMessage(message.tabId, { type: "CAREERPILOT_RUN_FILL" }, { frameId });
+      }
+      return void 0;
     }
     return void 0;
   });

@@ -392,7 +392,11 @@
     host;
     shadow;
     panel;
-    button;
+    // Trigger now lives in the extension popup, not a floating on-page
+    // button — this guards against a double-run if the popup somehow
+    // sends CAREERPILOT_RUN_FILL twice (e.g. a fast double-click) instead
+    // of disabling a page element that no longer exists.
+    running = false;
     // Captured while the job posting is still in the DOM — submission swaps
     // the page to a confirmation view that no longer has the job title, so
     // this must be read before that swap happens, not after.
@@ -408,31 +412,32 @@
       this.panel = document.createElement("div");
       this.panel.className = "cp-panel";
       this.shadow.appendChild(this.panel);
-      this.button = document.createElement("button");
-      this.button.className = "cp-fab";
-      this.button.textContent = "Apply with AI";
-      this.button.addEventListener("click", () => void this.run());
-      this.shadow.appendChild(this.button);
       this.watchForSubmission();
     }
     setPanel(html) {
       this.panel.innerHTML = html;
       this.panel.classList.add("visible");
     }
+    // Called from the popup (via the background relay) instead of an
+    // on-page button click.
+    runIfIdle() {
+      if (this.running) return;
+      void this.run();
+    }
     async run() {
-      this.button.disabled = true;
+      this.running = true;
       this.setPanel(`<div class="cp-status">Reading the application form\u2026</div>`);
       const generatedPassword = fillPasswordFields();
       const extracted = extractFields();
       if (extracted.length === 0 && !generatedPassword) {
         this.setPanel(`<div class="cp-status cp-error">No form fields found on this page.</div>`);
-        this.button.disabled = false;
+        this.running = false;
         return;
       }
       if (extracted.length === 0 && generatedPassword) {
         this.setPanel(this.passwordPanelHtml(generatedPassword));
         this.attachCopyPasswordHandler();
-        this.button.disabled = false;
+        this.running = false;
         return;
       }
       this.setPanel(`<div class="cp-status">Loading your Career Profile\u2026</div>`);
@@ -449,7 +454,7 @@
         this.setPanel(
           `<div class="cp-status cp-error">${err instanceof Error ? err.message : "Could not load your Career Profile."}</div>`
         );
-        this.button.disabled = false;
+        this.running = false;
         return;
       }
       this.setPanel(
@@ -477,7 +482,7 @@
         this.setPanel(
           `<div class="cp-status cp-error">${err instanceof Error ? err.message : "Autofill generation failed."}</div>`
         );
-        this.button.disabled = false;
+        this.running = false;
         return;
       }
       let filled = 0;
@@ -540,7 +545,7 @@
       ${generatedPassword ? this.passwordNoteHtml(generatedPassword) : ""}
     `);
       this.attachCopyPasswordHandler();
-      this.button.disabled = false;
+      this.running = false;
     }
     passwordPanelHtml(password) {
       return `<div class="cp-status cp-done">Generated an account password.</div>${this.passwordNoteHtml(password)}`;
@@ -603,17 +608,8 @@
   };
   var WIDGET_CSS = `
   :host { all: initial; }
-  .cp-fab {
-    position: fixed; top: 20px; right: 20px; z-index: 2147483647;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #2f6feb; color: #fff; border: none; border-radius: 999px;
-    padding: 0.75rem 1.4rem; font-size: 0.92rem; font-weight: 600;
-    cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2);
-  }
-  .cp-fab:disabled { opacity: 0.6; cursor: default; }
-  .cp-fab:hover:not(:disabled) { background: #2557c7; }
   .cp-panel {
-    display: none; position: fixed; top: 74px; right: 20px; z-index: 2147483647;
+    display: none; position: fixed; top: 20px; right: 20px; z-index: 2147483647;
     width: 280px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     padding: 0.9rem 1rem; font-size: 0.85rem; line-height: 1.45; color: #17181c;
@@ -661,10 +657,13 @@
     setTimeout(() => host.remove(), 6e3);
   }
   function frameHasFillableForm() {
-    return Array.from(document.querySelectorAll("input")).some(
+    if (document.querySelector("select, textarea")) return true;
+    const fillableInputs = Array.from(document.querySelectorAll("input")).filter(
       (el) => !SKIPPED_INPUT_TYPES.has(el.type)
-    ) || document.querySelector("select, textarea") !== null;
+    );
+    return fillableInputs.length >= 3;
   }
+  var activeWidget = null;
   function watchForFillableForm() {
     if (document.querySelector(".app-shell")) return;
     let mounted = false;
@@ -674,8 +673,10 @@
         return;
       }
       if (!frameHasFillableForm()) return;
-      new ApplyWidget();
+      activeWidget = new ApplyWidget();
       mounted = true;
+      void chrome.runtime.sendMessage({ type: "CAREERPILOT_FORM_AVAILABLE" }).catch(() => {
+      });
     };
     tryMount();
     const observer = new MutationObserver(tryMount);
@@ -684,6 +685,11 @@
       if (!mounted) observer.disconnect();
     }, 2e4);
   }
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === "CAREERPILOT_RUN_FILL") {
+      activeWidget?.runIfIdle();
+    }
+  });
   watchForFillableForm();
   if (!document.querySelector(".app-shell")) {
     void checkAndRecordPendingApplication();

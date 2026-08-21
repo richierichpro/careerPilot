@@ -663,7 +663,11 @@ class ApplyWidget {
   private host: HTMLDivElement;
   private shadow: ShadowRoot;
   private panel: HTMLDivElement;
-  private button: HTMLButtonElement;
+  // Trigger now lives in the extension popup, not a floating on-page
+  // button — this guards against a double-run if the popup somehow
+  // sends CAREERPILOT_RUN_FILL twice (e.g. a fast double-click) instead
+  // of disabling a page element that no longer exists.
+  private running = false;
   // Captured while the job posting is still in the DOM — submission swaps
   // the page to a confirmation view that no longer has the job title, so
   // this must be read before that swap happens, not after.
@@ -683,12 +687,6 @@ class ApplyWidget {
     this.panel.className = "cp-panel";
     this.shadow.appendChild(this.panel);
 
-    this.button = document.createElement("button");
-    this.button.className = "cp-fab";
-    this.button.textContent = "Apply with AI";
-    this.button.addEventListener("click", () => void this.run());
-    this.shadow.appendChild(this.button);
-
     this.watchForSubmission();
   }
 
@@ -697,8 +695,15 @@ class ApplyWidget {
     this.panel.classList.add("visible");
   }
 
+  // Called from the popup (via the background relay) instead of an
+  // on-page button click.
+  runIfIdle(): void {
+    if (this.running) return;
+    void this.run();
+  }
+
   private async run() {
-    this.button.disabled = true;
+    this.running = true;
     this.setPanel(`<div class="cp-status">Reading the application form…</div>`);
 
     const generatedPassword = fillPasswordFields();
@@ -706,14 +711,14 @@ class ApplyWidget {
 
     if (extracted.length === 0 && !generatedPassword) {
       this.setPanel(`<div class="cp-status cp-error">No form fields found on this page.</div>`);
-      this.button.disabled = false;
+      this.running = false;
       return;
     }
 
     if (extracted.length === 0 && generatedPassword) {
       this.setPanel(this.passwordPanelHtml(generatedPassword));
       this.attachCopyPasswordHandler();
-      this.button.disabled = false;
+      this.running = false;
       return;
     }
 
@@ -731,7 +736,7 @@ class ApplyWidget {
       this.setPanel(
         `<div class="cp-status cp-error">${err instanceof Error ? err.message : "Could not load your Career Profile."}</div>`,
       );
-      this.button.disabled = false;
+      this.running = false;
       return;
     }
 
@@ -765,7 +770,7 @@ class ApplyWidget {
       this.setPanel(
         `<div class="cp-status cp-error">${err instanceof Error ? err.message : "Autofill generation failed."}</div>`,
       );
-      this.button.disabled = false;
+      this.running = false;
       return;
     }
 
@@ -839,7 +844,7 @@ class ApplyWidget {
       ${generatedPassword ? this.passwordNoteHtml(generatedPassword) : ""}
     `);
     this.attachCopyPasswordHandler();
-    this.button.disabled = false;
+    this.running = false;
   }
 
   private passwordPanelHtml(password: string): string {
@@ -922,17 +927,8 @@ class ApplyWidget {
 
 const WIDGET_CSS = `
   :host { all: initial; }
-  .cp-fab {
-    position: fixed; top: 20px; right: 20px; z-index: 2147483647;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #2f6feb; color: #fff; border: none; border-radius: 999px;
-    padding: 0.75rem 1.4rem; font-size: 0.92rem; font-weight: 600;
-    cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2);
-  }
-  .cp-fab:disabled { opacity: 0.6; cursor: default; }
-  .cp-fab:hover:not(:disabled) { background: #2557c7; }
   .cp-panel {
-    display: none; position: fixed; top: 74px; right: 20px; z-index: 2147483647;
+    display: none; position: fixed; top: 20px; right: 20px; z-index: 2147483647;
     width: 280px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     padding: 0.9rem 1rem; font-size: 0.85rem; line-height: 1.45; color: #17181c;
@@ -991,10 +987,18 @@ function showToast(message: string, kind: "success" | "error" = "success") {
 // below), this script runs in every frame on the page: trackers, ad
 // iframes, reCAPTCHA, etc. Only mount the widget in a frame that actually
 // looks like it has a form worth filling, and never on our own web app.
+// A single stray text/search input (a newsletter signup box, a site
+// search bar) used to be enough to mount the widget — real job
+// application forms don't look like that, they have several fields.
+// Requiring either a select/textarea (rare outside real forms) or a
+// handful of real inputs cuts down on the widget showing up on pages
+// that aren't actually application forms at all.
 function frameHasFillableForm(): boolean {
-  return Array.from(document.querySelectorAll<HTMLInputElement>("input")).some(
+  if (document.querySelector("select, textarea")) return true;
+  const fillableInputs = Array.from(document.querySelectorAll<HTMLInputElement>("input")).filter(
     (el) => !SKIPPED_INPUT_TYPES.has(el.type),
-  ) || document.querySelector("select, textarea") !== null;
+  );
+  return fillableInputs.length >= 3;
 }
 
 // Real ATS integrations very commonly embed the actual application form in
@@ -1012,6 +1016,12 @@ function frameHasFillableForm(): boolean {
 // one-shot document_idle injection point — a single frameHasFillableForm()
 // check right away can run before the form exists at all. Retry on DOM
 // mutations for a while instead of giving up after one look.
+// The active ApplyWidget for THIS frame, if a fillable form was found —
+// the popup's "Apply with AI" click reaches this via a background relay
+// (see the CAREERPILOT_RUN_FILL listener below), since the trigger no
+// longer lives on the page itself.
+let activeWidget: ApplyWidget | null = null;
+
 function watchForFillableForm() {
   if (document.querySelector(".app-shell")) return;
 
@@ -1023,8 +1033,12 @@ function watchForFillableForm() {
       return;
     }
     if (!frameHasFillableForm()) return;
-    new ApplyWidget();
+    activeWidget = new ApplyWidget();
     mounted = true;
+    // Tell the background script this frame has something to fill, so
+    // the popup can show its own "Apply with AI" button instead of a
+    // floating one on the page.
+    void chrome.runtime.sendMessage({ type: "CAREERPILOT_FORM_AVAILABLE" }).catch(() => {});
   };
 
   tryMount();
@@ -1047,6 +1061,15 @@ function watchForFillableForm() {
     if (!mounted) observer.disconnect();
   }, 20000);
 }
+
+// The popup can't run the fill itself (it has no access to the page's
+// DOM) — it asks the background script, which relays this to whichever
+// frame actually reported a fillable form.
+chrome.runtime.onMessage.addListener((message: { type?: string }) => {
+  if (message?.type === "CAREERPILOT_RUN_FILL") {
+    activeWidget?.runIfIdle();
+  }
+});
 
 watchForFillableForm();
 

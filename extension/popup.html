@@ -43,14 +43,48 @@
         color: #fff;
         border-color: #2f6feb;
       }
-      button:hover {
+      button:hover:not(:disabled) {
         opacity: 0.9;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      #apply-row {
+        display: none;
+      }
+      #apply-row.visible {
+        display: block;
+      }
+      #apply-with-ai {
+        width: 100%;
+        padding: 9px 0;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .apply-hint {
+        font-size: 11px;
+        color: #6b7280;
+        margin: 6px 0 0;
+      }
+      .no-form {
+        font-size: 12px;
+        color: #6b7280;
+        margin: 0 0 14px;
+        padding: 8px 0;
+        border-top: 1px solid #eee;
       }
     </style>
   </head>
   <body>
     <h1>CareerPilot</h1>
     <p class="sub">AI job application autofill</p>
+
+    <div id="apply-row">
+      <button id="apply-with-ai" class="primary">Apply with AI</button>
+      <p class="apply-hint">Fills this page's form from your Career Profile — check the page for progress.</p>
+    </div>
+    <p id="no-form-hint" class="no-form">No application form detected on this page.</p>
 
     <div class="actions">
       <button id="open-profile">Career Profile</button>
