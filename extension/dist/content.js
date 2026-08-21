@@ -417,6 +417,11 @@
     setPanel(html) {
       this.panel.innerHTML = html;
       this.panel.classList.add("visible");
+      const text = this.panel.textContent?.trim() ?? "";
+      if (text) {
+        void chrome.runtime.sendMessage({ type: "CAREERPILOT_FILL_PROGRESS", text }).catch(() => {
+        });
+      }
     }
     // Called from the popup (via the background relay) instead of an
     // on-page button click.

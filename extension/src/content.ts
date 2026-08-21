@@ -693,6 +693,16 @@ class ApplyWidget {
   private setPanel(html: string) {
     this.panel.innerHTML = html;
     this.panel.classList.add("visible");
+    // chrome.runtime.sendMessage broadcasts within the extension — the
+    // popup, if it's still open, can listen for this directly without
+    // going through the background script. The on-page panel wasn't
+    // reliably visible in practice (easy to miss on a long page, or
+    // covered by the site's own fixed-position elements), so this gives
+    // the same live status a second, more reliable place to show up.
+    const text = this.panel.textContent?.trim() ?? "";
+    if (text) {
+      void chrome.runtime.sendMessage({ type: "CAREERPILOT_FILL_PROGRESS", text }).catch(() => {});
+    }
   }
 
   // Called from the popup (via the background relay) instead of an

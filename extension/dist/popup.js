@@ -12,6 +12,7 @@
     const applyRow = document.getElementById("apply-row");
     const noFormHint = document.getElementById("no-form-hint");
     const applyBtn = document.getElementById("apply-with-ai");
+    const statusEl = document.getElementById("apply-status");
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) return;
     const { available } = await chrome.runtime.sendMessage({
@@ -21,11 +22,17 @@
     if (!available) return;
     applyRow?.classList.add("visible");
     noFormHint?.remove();
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message?.type === "CAREERPILOT_FILL_PROGRESS" && statusEl) {
+        statusEl.textContent = message.text ?? "";
+        statusEl.classList.add("visible");
+      }
+    });
     applyBtn?.addEventListener("click", () => {
       if (!applyBtn || !tab.id) return;
       applyBtn.disabled = true;
       applyBtn.textContent = "Filling\u2026";
-      chrome.runtime.sendMessage({ type: "CAREERPILOT_TRIGGER_FILL", tabId: tab.id }).finally(() => window.close());
+      void chrome.runtime.sendMessage({ type: "CAREERPILOT_TRIGGER_FILL", tabId: tab.id });
     });
   }
   void initApplyButton();

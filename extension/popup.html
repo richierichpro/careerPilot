@@ -67,6 +67,19 @@
         color: #6b7280;
         margin: 6px 0 0;
       }
+      #apply-status {
+        display: none;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: #f1f5f9;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #17181c;
+      }
+      #apply-status.visible {
+        display: block;
+      }
       .no-form {
         font-size: 12px;
         color: #6b7280;
@@ -82,7 +95,8 @@
 
     <div id="apply-row">
       <button id="apply-with-ai" class="primary">Apply with AI</button>
-      <p class="apply-hint">Fills this page's form from your Career Profile — check the page for progress.</p>
+      <p class="apply-hint">Fills this page's form from your Career Profile.</p>
+      <div id="apply-status"></div>
     </div>
     <p id="no-form-hint" class="no-form">No application form detected on this page.</p>
 
