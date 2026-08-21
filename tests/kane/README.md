@@ -5,6 +5,23 @@ the result, and (when Kane catches something) how the agent responded.
 
 ## Runs
 
+### 2026-08-21 — Demo job application: fill, submit, confirm (formal, Milestone 8)
+
+**Run:** Open `/demo/northwind-backend-engineer`, verify it reads as a
+standalone external company page (no CareerPilot branding/nav visible), fill
+Full Name and Email, submit, verify a confirmation naming "Backend Engineer"
+and "Northwind Labs" appears and the form disappears. Verify zero console
+errors.
+
+**Result:** PASS — clean on first try, no fix needed.
+
+**Why this matters:** This page is the deterministic target the Chrome
+extension will exercise for the hero flow (Apply with AI → fill → submit →
+tracker). Confirming it behaves like a real ATS now — realistic field
+labels, a real submit/confirmation lifecycle, no console errors — means the
+extension work that follows is being built against a page we've already
+verified end-to-end.
+
 ### 2026-08-21 — Applications tracker renders real backend data (formal, Milestone 7)
 
 **Run:** Seed two applications via `POST /api/applications` (Northwind Labs /
