@@ -1015,19 +1015,37 @@ function frameHasFillableForm(): boolean {
 function watchForFillableForm() {
   if (document.querySelector(".app-shell")) return;
 
-  if (frameHasFillableForm()) {
-    new ApplyWidget();
-    return;
-  }
+  let mounted = false;
 
-  const observer = new MutationObserver(() => {
-    if (frameHasFillableForm()) {
-      observer.disconnect();
-      new ApplyWidget();
+  const tryMount = () => {
+    if (document.querySelector("#careerpilot-widget-host")) {
+      mounted = true;
+      return;
     }
-  });
+    if (!frameHasFillableForm()) return;
+    new ApplyWidget();
+    mounted = true;
+  };
+
+  tryMount();
+
+  // Some SPAs (confirmed real example: a Greenhouse job page) do a later
+  // full re-render/rehydration pass — well after the form itself was
+  // already fillable and the widget had already mounted — that replaces
+  // document.body's children wholesale, wiping our widget's host element
+  // along with it (the button "blinks and vanishes", not just never
+  // appearing). A one-shot mount-then-disconnect can't recover from that,
+  // so this keeps watching and re-mounts whenever the host goes missing
+  // while the page still has fillable fields.
+  const observer = new MutationObserver(tryMount);
   observer.observe(document.body, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 20000); // give up rather than watch forever
+
+  // Only give up on a form that never showed up at all — once mounted at
+  // least once, keep watching indefinitely so a later removal still gets
+  // a fresh remount instead of silently vanishing forever.
+  setTimeout(() => {
+    if (!mounted) observer.disconnect();
+  }, 20000);
 }
 
 watchForFillableForm();

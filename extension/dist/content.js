@@ -667,18 +667,22 @@
   }
   function watchForFillableForm() {
     if (document.querySelector(".app-shell")) return;
-    if (frameHasFillableForm()) {
-      new ApplyWidget();
-      return;
-    }
-    const observer = new MutationObserver(() => {
-      if (frameHasFillableForm()) {
-        observer.disconnect();
-        new ApplyWidget();
+    let mounted = false;
+    const tryMount = () => {
+      if (document.querySelector("#careerpilot-widget-host")) {
+        mounted = true;
+        return;
       }
-    });
+      if (!frameHasFillableForm()) return;
+      new ApplyWidget();
+      mounted = true;
+    };
+    tryMount();
+    const observer = new MutationObserver(tryMount);
     observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => observer.disconnect(), 2e4);
+    setTimeout(() => {
+      if (!mounted) observer.disconnect();
+    }, 2e4);
   }
   watchForFillableForm();
   if (!document.querySelector(".app-shell")) {
