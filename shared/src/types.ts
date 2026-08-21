@@ -93,7 +93,7 @@ export interface ProfileParseRequest {
   resumeId: string;
 }
 
-export type DetectedFieldType = "text" | "email" | "tel" | "textarea" | "select";
+export type DetectedFieldType = "text" | "email" | "tel" | "textarea" | "select" | "checkbox-group";
 
 export interface DetectedField {
   id: string;

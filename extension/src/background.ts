@@ -16,28 +16,88 @@ interface BackendFetchResponse {
   body: unknown;
 }
 
+interface SavePendingRequest {
+  type: "CAREERPILOT_SAVE_PENDING";
+  jobContext: unknown;
+}
+
+interface PeekPendingRequest {
+  type: "CAREERPILOT_PEEK_PENDING";
+}
+
+interface ClearPendingRequest {
+  type: "CAREERPILOT_CLEAR_PENDING";
+}
+
+type ExtensionMessage =
+  | BackendFetchRequest
+  | SavePendingRequest
+  | PeekPendingRequest
+  | ClearPendingRequest;
+
 const SERVER_URL = "http://localhost:8787";
+const PENDING_KEY = "careerpilot_pending_application";
+const PENDING_MAX_AGE_MS = 30 * 60 * 1000;
 
-chrome.runtime.onMessage.addListener((message: BackendFetchRequest, _sender, sendResponse) => {
-  if (message?.type !== "CAREERPILOT_FETCH") return undefined;
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+  if (message?.type === "CAREERPILOT_FETCH") {
+    (async () => {
+      try {
+        const res = await fetch(`${SERVER_URL}${message.path}`, message.init);
+        const body = await res.json().catch(() => null);
+        const response: BackendFetchResponse = { ok: res.ok, status: res.status, body };
+        sendResponse(response);
+      } catch (err) {
+        const response: BackendFetchResponse = {
+          ok: false,
+          status: 0,
+          body: { error: err instanceof Error ? err.message : "Network request failed." },
+        };
+        sendResponse(response);
+      }
+    })();
+    return true; // keep the message channel open for the async sendResponse
+  }
 
-  (async () => {
-    try {
-      const res = await fetch(`${SERVER_URL}${message.path}`, message.init);
-      const body = await res.json().catch(() => null);
-      const response: BackendFetchResponse = { ok: res.ok, status: res.status, body };
-      sendResponse(response);
-    } catch (err) {
-      const response: BackendFetchResponse = {
-        ok: false,
-        status: 0,
-        body: { error: err instanceof Error ? err.message : "Network request failed." },
-      };
-      sendResponse(response);
-    }
-  })();
+  // chrome.storage.session isn't accessible from content scripts by
+  // default (only trusted contexts like this background script), so the
+  // content script proxies through here — same reason as the fetch proxy
+  // above. This is what lets "Apply with AI" get remembered across a real
+  // page navigation to a confirmation URL, which destroys the content
+  // script's own JS context and any in-memory state with it.
+  if (message?.type === "CAREERPILOT_SAVE_PENDING") {
+    void chrome.storage.session
+      .set({ [PENDING_KEY]: { jobContext: message.jobContext, timestamp: Date.now() } })
+      .then(() => sendResponse({ ok: true }));
+    return true;
+  }
 
-  return true; // keep the message channel open for the async sendResponse
+  // Peek, don't take — a real submit flow can involve an intermediate
+  // page (a loading state, a redirect hop) before the actual confirmation
+  // page loads, and each of those pages' content scripts calls this. If
+  // the first one to ask consumed the flag, a genuine confirmation two
+  // hops later would find nothing left to record. The content script
+  // explicitly clears it once it actually acts on a match instead.
+  if (message?.type === "CAREERPILOT_PEEK_PENDING") {
+    (async () => {
+      const stored = await chrome.storage.session.get(PENDING_KEY);
+      const pending = stored[PENDING_KEY] as { jobContext: unknown; timestamp: number } | undefined;
+      if (!pending || Date.now() - pending.timestamp > PENDING_MAX_AGE_MS) {
+        if (pending) await chrome.storage.session.remove(PENDING_KEY); // expired — clean up
+        sendResponse({ jobContext: null });
+      } else {
+        sendResponse({ jobContext: pending.jobContext });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "CAREERPILOT_CLEAR_PENDING") {
+    void chrome.storage.session.remove(PENDING_KEY).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  return undefined;
 });
 
 chrome.runtime.onInstalled.addListener(() => {
