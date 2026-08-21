@@ -504,6 +504,55 @@ async function learnAnswer(profileId: string, label: string, value: string): Pro
   }
 }
 
+// Automatic detection (immediate check + a MutationObserver retry window)
+// depends on timing heuristics that have real, demonstrated failure modes —
+// a slow-rendering dashboard can still be loading when even the retry
+// window gives up. Rather than chase every ATS's specific render timing,
+// give the candidate a guaranteed, one-click way to trigger the exact same
+// AI check themselves the moment they can actually see a "Submitted" status
+// on screen — a human looking at the real page is a more reliable signal
+// than any more timing logic could be. Returns the host element so the
+// caller can remove it once resolved (by either path).
+function showPendingChecker(jobContext: JobContext, onCheck: () => Promise<boolean>): HTMLDivElement {
+  const host = document.createElement("div");
+  host.id = "careerpilot-pending-checker-host";
+  document.body.appendChild(host);
+  const shadow = host.attachShadow({ mode: "open" });
+  const style = document.createElement("style");
+  style.textContent = `
+    .cp-checker {
+      position: fixed; bottom: 24px; left: 20px; z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fff; color: #17181c; border: 1px solid #d1d5db;
+      border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+      padding: 0.55rem 1rem; font-size: 0.82rem; font-weight: 500;
+      cursor: pointer;
+    }
+    .cp-checker:hover { background: #f8fafc; }
+    .cp-checker.busy { opacity: 0.6; cursor: default; }
+  `;
+  shadow.appendChild(style);
+  const label = `Applied to ${jobContext.company}? Check this page`;
+  const btn = document.createElement("button");
+  btn.className = "cp-checker";
+  btn.textContent = label;
+  btn.addEventListener("click", () => {
+    if (btn.classList.contains("busy")) return;
+    btn.classList.add("busy");
+    btn.textContent = "Checking…";
+    void onCheck().then((done) => {
+      if (done) {
+        host.remove();
+        return;
+      }
+      btn.classList.remove("busy");
+      btn.textContent = label;
+    });
+  });
+  shadow.appendChild(btn);
+  return host;
+}
+
 async function recordApplicationToServer(ctx: JobContext): Promise<boolean> {
   try {
     const res = await bgFetch("/api/applications", {
@@ -560,7 +609,23 @@ async function checkAndRecordPendingApplication(): Promise<void> {
     return true;
   };
 
-  if (await tryDetectAndRecord()) return;
+  // Always available immediately, not just as a last resort after the
+  // automatic attempts below give up — a demonstrated real gap (a slow-
+  // rendering dashboard's status not being in the DOM yet at any fixed
+  // check time) means automatic detection alone isn't reliable enough on
+  // its own to promise "you'll never need to check this yourself."
+  let resolved = false;
+  const checkerHost = showPendingChecker(jobContext, async () => {
+    const done = await tryDetectAndRecord();
+    if (done) resolved = true;
+    return done;
+  });
+
+  if (await tryDetectAndRecord()) {
+    resolved = true;
+    checkerHost.remove();
+    return;
+  }
 
   // A landing dashboard on a real ATS (Google Careers confirmed) can still
   // be mid-render on this first check — its "Submitted" status may not be
@@ -569,11 +634,18 @@ async function checkAndRecordPendingApplication(): Promise<void> {
   // slow-rendering application forms.
   let checking = false;
   const observer = new MutationObserver(() => {
-    if (checking) return;
+    if (checking || resolved) {
+      if (resolved) observer.disconnect();
+      return;
+    }
     checking = true;
     void tryDetectAndRecord()
       .then((done) => {
-        if (done) observer.disconnect();
+        if (done) {
+          resolved = true;
+          observer.disconnect();
+          checkerHost.remove();
+        }
       })
       .finally(() => {
         checking = false;
