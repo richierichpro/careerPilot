@@ -1,0 +1,16 @@
+{
+  "name": "careerpilot",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "web",
+    "server",
+    "extension",
+    "shared"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:web": "npm run dev --workspace=web",
+    "build:shared": "npm run build --workspace=shared"
+  }
+}

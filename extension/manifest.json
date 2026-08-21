@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "CareerPilot — AI Application Autofill",
+  "version": "0.1.0",
+  "description": "Fills job applications using your AI-generated Career Profile.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CareerPilot"
+  },
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://localhost:8787/*"]
+}
